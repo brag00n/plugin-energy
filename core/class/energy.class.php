@@ -414,6 +414,8 @@ class energy extends eqLogic {
 			}
 		}
 		if (isset($return['totalConsumption'])) {
+			// Built equipment after equipment, so a day recorded only by a later equipment would come out of order
+			ksort($return['totalConsumption']);
 			$return['totalConsumption'] = array_values($return['totalConsumption']);
 		}
 

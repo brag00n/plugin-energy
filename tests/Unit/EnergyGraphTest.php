@@ -249,6 +249,29 @@ final class EnergyGraphTest extends EnergyTestCase {
 		$this->assertSame($sorted, $dates);
 	}
 
+	public function testTotalConsumptionIsSortedByDateAcrossEquipments(): void {
+		// Regression: totalConsumption is built equipment after equipment, so a day that only a later
+		// equipment recorded came out after the following days. The charts need ascending dates.
+		$object = new jeeObject(1, 'home');
+		$first = $this->withCommands($this->makeEnergy('electricity'), array(
+			new GraphCmdDouble('consumptionTotal', array(array('2026-11-01', '2.63'), array('2026-11-03', '21'))),
+		));
+		$second = $this->withCommands($this->makeEnergy('electricity'), array(
+			new GraphCmdDouble('consumptionTotal', array(array('2026-11-02', '52.5'), array('2026-11-03', '15'))),
+		));
+		$this->placeIn($object, $first, $second);
+		$result = energy::getGraph('2026-11-01 00:00:00', '2026-11-03', 1);
+		$dates = array_column($result['totalConsumption'], 0);
+		$sorted = $dates;
+		sort($sorted);
+		$this->assertSame($sorted, $dates, 'totalConsumption must be in ascending date order');
+		$this->assertSame(array(
+			array($this->ms('2026-11-01'), 2.63),
+			array($this->ms('2026-11-02'), 52.5),
+			array($this->ms('2026-11-03'), 36.0),
+		), $result['totalConsumption']);
+	}
+
 	public function testGetGraphSignatureHasNoOptionalBeforeRequired(): void {
 		$method = new ReflectionMethod('energy', 'getGraph');
 		$seenOptional = false;
