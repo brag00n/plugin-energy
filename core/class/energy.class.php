@@ -319,6 +319,24 @@ class energy extends eqLogic {
 	}
 
 	/**
+	 * Unit of the rate of a quantity: electricity is judged in watts (kWh over time), any other energy
+	 * (water in L, gas in kWh or m3) in "<unit> per hour".
+	 */
+	public static function jumpRateUnit($_unit) {
+		return ($_unit === 'kWh') ? 'W' : $_unit . '/h';
+	}
+
+	/**
+	 * Rate of a cycle: a quantity in kWh is expressed in W (kWh per hour x 1000), which also fits gas counted in kWh;
+	 * any other unit (L of water) in "<unit> per hour". The judgement only compares an equipment with itself,
+	 * so the unit has no influence on the detection, it only makes the logs readable.
+	 */
+	public static function jumpRate($_quantity, $_duration, $_unit = 'kWh') {
+		$perHour = $_quantity / ($_duration / 3600);
+		return ($_unit === 'kWh') ? $perHour * 1000 : $perHour;
+	}
+
+	/**
 	 * Warns when one equipment is credited more energy in a single cycle than it can plausibly consume,
 	 * and gives what is needed to explain it: the cron intervals and the lines that brought the energy.
 	 *
@@ -333,23 +351,24 @@ class energy extends eqLogic {
 	 * @param array $_cron result of cronRecord()
 	 * @return bool true when a warning was logged
 	 */
-	public static function warnConsumptionJump($_energy, $_kwh, $_lines, $_cron, $_now = null) {
+	public static function warnConsumptionJump($_energy, $_quantity, $_lines, $_cron, $_now = null, $_unit = 'kWh') {
 		$now = ($_now !== null) ? $_now : time();
 		$name = $_energy->getHumanName();
 		$debug = self::isDebugEnabled();
+		$rateUnit = self::jumpRateUnit($_unit);
 
-		// 1. The rate of the cycle: energy credited over the real time since the previous cycle.
+		// 1. The rate of the cycle: quantity credited over the real time since the previous cycle.
 		// Without a previous cycle the duration is unknown: the nominal period is used, and the debug line says so.
 		$durationKnown = ($_cron['interval'] !== null && $_cron['interval'] > 0);
 		$duration = $durationKnown ? $_cron['interval'] : self::CRON_NOMINAL_INTERVAL;
-		$rate = ($_kwh * 1000) / ($duration / 3600);
+		$rate = self::jumpRate($_quantity, $duration, $_unit);
 
 		// 2. Judge it against what this equipment did before
 		$profile = self::jumpProfile($_energy);
 		$verdict = self::jumpJudge($profile, $rate);
 
 		if ($debug) {
-			log::add('energy', 'debug', '[jump] ' . $name . ': ' . round($_kwh, 3) . ' kWh over ' . $duration . ' s' . ($durationKnown ? '' : ' (nominal, no previous cycle)') . ' = ' . round($rate, 1) . ' W; ' . ($verdict['established'] ? 'reference ' . round($verdict['reference'], 1) . ' W over ' . count($profile['days']) . ' day(s), threshold ' . round($verdict['threshold'], 1) . ' W -> ' . ($verdict['abnormal'] ? 'ABNORMAL' : 'normal') : 'profile not established yet (' . $profile['active'] . '/' . $verdict['minActive'] . ' active cycles, reference ' . round($verdict['reference'], 1) . ' W) -> not judged'));
+			log::add('energy', 'debug', '[jump] ' . $name . ': ' . round($_quantity, 3) . ' ' . $_unit . ' over ' . $duration . ' s' . ($durationKnown ? '' : ' (nominal, no previous cycle)') . ' = ' . round($rate, 1) . ' ' . $rateUnit . '; ' . ($verdict['established'] ? 'reference ' . round($verdict['reference'], 1) . ' ' . $rateUnit . ' over ' . count($profile['days']) . ' day(s), threshold ' . round($verdict['threshold'], 1) . ' ' . $rateUnit . ' -> ' . ($verdict['abnormal'] ? 'ABNORMAL' : 'normal') : 'profile not established yet (' . $profile['active'] . '/' . $verdict['minActive'] . ' active cycles, reference ' . round($verdict['reference'], 1) . ' ' . $rateUnit . ') -> not judged'));
 		}
 
 		// 3. A normal cycle is learned; an abnormal one never is, or it would raise the reference and hide the next jump
@@ -358,7 +377,7 @@ class energy extends eqLogic {
 			if ($learned !== $profile) {
 				$_energy->setConfiguration('jumpProfile', json_encode($learned));
 				if ($debug) {
-					log::add('energy', 'debug', '[jump] ' . $name . ': learned ' . round($rate, 1) . ' W, profile now ' . count($learned['days']) . ' day(s), highest ' . round(max($learned['days']), 1) . ' W, ' . $learned['active'] . ' active cycle(s)');
+					log::add('energy', 'debug', '[jump] ' . $name . ': learned ' . round($rate, 1) . ' ' . $rateUnit . ', profile now ' . count($learned['days']) . ' day(s), highest ' . round(max($learned['days']), 1) . ' ' . $rateUnit . ', ' . $learned['active'] . ' active cycle(s)');
 				}
 			}
 			return false;
@@ -369,7 +388,7 @@ class energy extends eqLogic {
 		$regimeHours = self::jumpParam('RegimeHours', self::JUMP_REGIME_HOURS);
 		if ($debug) {
 			log::add('energy', 'debug', '[jump] ' . $name . ': abnormal cycle ' . ($accepted
-				? 'accepted as a change of regime (' . count($recent) . ' abnormal cycles within ' . $regimeHours . ' h), reference raised to ' . round(max($profile['days']), 1) . ' W'
+				? 'accepted as a change of regime (' . count($recent) . ' abnormal cycles within ' . $regimeHours . ' h), reference raised to ' . round(max($profile['days']), 1) . ' ' . $rateUnit
 				: 'NOT learned (' . count($recent) . '/' . $regimeCount . ' abnormal cycles within ' . $regimeHours . ' h), the reference is unchanged'));
 		}
 
@@ -392,12 +411,12 @@ class energy extends eqLogic {
 		$details = array();
 		foreach ($_lines as $line) {
 			if ($line['kwh'] > 0) {
-				$details[] = '[' . $line['category'] . ', ' . $line['mode'] . ', ' . $line['key'] . '] ' . round($line['kwh'], 3) . ' kWh (' . $line['info'] . ')';
+				$details[] = '[' . $line['category'] . ', ' . $line['mode'] . ', ' . $line['key'] . '] ' . round($line['kwh'], 3) . ' ' . $_unit . ' (' . $line['info'] . ')';
 			}
 		}
-		$what = round($_kwh, 3) . ' kWh credited in ' . $duration . ' s = ' . round($rate, 1) . ' W, above the threshold of ' . round($verdict['threshold'], 1) . ' W (' . self::jumpParam('Margin', self::JUMP_MARGIN) . ' x the highest normal rate of ' . round($verdict['reference'], 1) . ' W seen over the last ' . $verdict['days'] . ' day(s)). Cron: ' . $cronText . '; last intervals: ' . $intervals . '. Probable cause: ' . $cause . '. Lines: ' . implode('; ', $details);
+		$what = round($_quantity, 3) . ' ' . $_unit . ' credited in ' . $duration . ' s = ' . round($rate, 1) . ' ' . $rateUnit . ', above the threshold of ' . round($verdict['threshold'], 1) . ' ' . $rateUnit . ' (' . self::jumpParam('Margin', self::JUMP_MARGIN) . ' x the highest normal rate of ' . round($verdict['reference'], 1) . ' ' . $rateUnit . ' seen over the last ' . $verdict['days'] . ' day(s)). Cron: ' . $cronText . '; last intervals: ' . $intervals . '. Probable cause: ' . $cause . '. Lines: ' . implode('; ', $details);
 		if ($accepted) {
-			log::add('energy', 'warning', 'Consumption regime change accepted for ' . $name . ': ' . count($recent) . ' abnormal cycles within ' . $regimeHours . ' h, so this is no longer an isolated jump; the reference is raised to ' . round(max($profile['days']), 1) . ' W. Last cycle: ' . $what);
+			log::add('energy', 'warning', 'Consumption regime change accepted for ' . $name . ': ' . count($recent) . ' abnormal cycles within ' . $regimeHours . ' h, so this is no longer an isolated jump; the reference is raised to ' . round(max($profile['days']), 1) . ' ' . $rateUnit . '. Last cycle: ' . $what);
 		} else {
 			log::add('energy', 'warning', 'Abnormal consumption jump for ' . $name . ': ' . $what);
 		}
@@ -632,6 +651,8 @@ class energy extends eqLogic {
 				}
 			} else {
 				$totalConsumption = 0;
+				// What each meter brings in this cycle, to explain a consumption jump (see warnConsumptionJump())
+				$jumpLines = array();
 				$position = 0;
 				foreach ($energy->getConfiguration('confEnergy') as $confEnergy) {
 					$key = self::getConfEnergyKey($confEnergy, $position);
@@ -640,6 +661,7 @@ class energy extends eqLogic {
 					$value = floatval($rawValue);
 					if (($value - $previous) >= 0) {
 						$totalConsumption += ($value - $previous);
+						$jumpLines[] = array('key' => $key, 'category' => $energy->getConfiguration('type'), 'mode' => 'index delta', 'kwh' => $value - $previous, 'info' => 'index ' . $previous . ' => ' . $value);
 						$energy->setConfiguration('previous' . $key, $value);
 					} elseif (is_numeric($rawValue)) {
 						// Counter was reset or replaced: realign on the new index
@@ -648,6 +670,9 @@ class energy extends eqLogic {
 					}
 					$position++;
 				}
+				// Same adaptive detection as for electricity, in the unit of the equipment (L for water, kWh for gas)
+				$jumpUnit = $energy->getConfiguration('type') == 'water' ? 'L' : 'kWh';
+				self::warnConsumptionJump($energy, $totalConsumption, $jumpLines, $cron, $cycleNow, $jumpUnit);
 				$energy->save();
 				if ($totalConsumption > 0) {
 					$cmd = $energy->getCmd(null, 'consumptionTotal');
