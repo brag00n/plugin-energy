@@ -116,7 +116,7 @@ class energy extends eqLogic {
 					}
 					$calculCost = 0;
 					if (config::byKey('rateMode', 'energy') == 'variable') {
-						if ($consumptions['hp'] != 0 || $consumptions['hp'] != 0) {
+						if ($consumptions['hp'] != 0 || $consumptions['hc'] != 0) {
 							$calculCost = $consumptions['hp'] * str_replace(',', '.', config::byKey('rateHp', 'energy')) + $consumptions['hc'] * str_replace(',', '.', config::byKey('rateHc', 'energy'));
 						} else {
 							$rateHour = array(
