@@ -694,7 +694,7 @@ class energy extends eqLogic {
 			$cmd = $this->getCmd(null, 'consumptionHp');
 			if (!is_object($cmd)) {
 				$cmd = new energyCmd();
-				$cmd->setLogicalId('consumptionHP');
+				$cmd->setLogicalId('consumptionHp');
 				$cmd->setTemplate('dashboard', 'tile');
 				$cmd->setConfiguration('historizeMode', 'max');
 				$cmd->setIsHistorized(1);
@@ -710,7 +710,7 @@ class energy extends eqLogic {
 			$cmd = $this->getCmd(null, 'consumptionHc');
 			if (!is_object($cmd)) {
 				$cmd = new energyCmd();
-				$cmd->setLogicalId('consumptionHC');
+				$cmd->setLogicalId('consumptionHc');
 				$cmd->setTemplate('dashboard', 'tile');
 				$cmd->setConfiguration('historizeMode', 'max');
 				$cmd->setIsHistorized(1);
