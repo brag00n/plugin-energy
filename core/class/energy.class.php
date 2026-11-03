@@ -63,6 +63,65 @@ class energy extends eqLogic {
 	/** Overrides the current time (timestamp) of cron15, only meant for the unit tests. */
 	public static $nowOverride = null;
 
+	/** Forces the performance traces on or off (null = follow the log level of the plugin), only meant for the unit tests. */
+	public static $perfOverride = null;
+
+	/** @var array Counters of the current getGraph() run, see perfStart() / perfStop() */
+	private static $perfStats = array();
+
+	/**
+	 * Performance traces are only produced when the log level of the plugin is "debug",
+	 * so they cost nothing in a normal run.
+	 */
+	public static function isPerfEnabled() {
+		if (self::$perfOverride !== null) {
+			return self::$perfOverride;
+		}
+		return log::getLogLevel('energy') <= 100;
+	}
+
+	/** Starts a timer. Returns null when the traces are disabled, which perfStop() ignores. */
+	private static function perfStart() {
+		return self::isPerfEnabled() ? microtime(true) : null;
+	}
+
+	/**
+	 * Stops a timer, logs the line and adds the duration to the counters of the run.
+	 *
+	 * @param float|null $_start value returned by perfStart()
+	 * @param string $_group counter name (e.g. "history power", "sql energy")
+	 * @param string $_label what was measured, shown in the log
+	 * @param int|null $_rows number of rows returned, when relevant
+	 */
+	private static function perfStop($_start, $_group, $_label, $_rows = null) {
+		if ($_start === null) {
+			return;
+		}
+		$ms = (microtime(true) - $_start) * 1000;
+		if (!isset(self::$perfStats[$_group])) {
+			self::$perfStats[$_group] = array('calls' => 0, 'ms' => 0, 'rows' => 0);
+		}
+		self::$perfStats[$_group]['calls']++;
+		self::$perfStats[$_group]['ms'] += $ms;
+		self::$perfStats[$_group]['rows'] += intval($_rows);
+		log::add('energy', 'debug', '[perf] ' . $_label . ': ' . round($ms) . ' ms' . ($_rows !== null ? ', ' . intval($_rows) . ' rows' : ''));
+	}
+
+	/** Logs the counters of the run, one line per group, slowest first. */
+	private static function perfSummary($_label, $_start) {
+		if ($_start === null) {
+			return;
+		}
+		$stats = self::$perfStats;
+		uasort($stats, function ($a, $b) {
+			return $b['ms'] <=> $a['ms'];
+		});
+		foreach ($stats as $group => $stat) {
+			log::add('energy', 'debug', '[perf]   ' . $group . ': ' . $stat['calls'] . ' calls, ' . round($stat['ms']) . ' ms, ' . $stat['rows'] . ' rows');
+		}
+		log::add('energy', 'debug', '[perf] ' . $_label . ' done in ' . round((microtime(true) - $_start) * 1000) . ' ms');
+	}
+
 	public static function cron15() {
 		$datetime = date('Y-m-d H:i:00', (self::$nowOverride !== null) ? self::$nowOverride : time());
 		$powerTotal = 0;
@@ -258,17 +317,27 @@ class energy extends eqLogic {
 		if ($_energyType == 'water') {
 			$return['consumptionUnite'] = 'L';
 		}
+		self::$perfStats = array();
+		$perfRun = self::perfStart();
+		if ($perfRun !== null) {
+			log::add('energy', 'debug', '[perf] getGraph start: object ' . $_object_id . ', type ' . $_energyType . ', from ' . $_startTime . ' to ' . $_endTime);
+		}
+		$perfStep = self::perfStart();
 		$object = jeeObject::byId($_object_id);
 		if (!is_object($object)) {
 			throw new Exception(__('Objet non trouvé. Vérifiez l\'id : ', __FILE__) . $_object_id);
 		}
 		$objects = $object->getChilds();
 		$objects[] = $object;
+		self::perfStop($perfStep, 'objects tree', 'object tree (' . count($objects) . ' objects)');
 
 		foreach ($objects as $object) {
 			$return['object'][$object->getName()] = array();
 			$return['power'][$object->getName()] = array();
-			foreach ($object->getEqLogic(true, false, 'energy') as $energy) {
+			$perfStep = self::perfStart();
+			$energies = $object->getEqLogic(true, false, 'energy');
+			self::perfStop($perfStep, 'equipments lookup', 'object "' . $object->getName() . '" equipments (' . count($energies) . ')');
+			foreach ($energies as $energy) {
 				if ($energy->getConfiguration('type') != $_energyType) {
 					continue;
 				}
@@ -278,7 +347,10 @@ class energy extends eqLogic {
 				$cmd = $energy->getCmd(null, 'power');
 				if (is_object($cmd)) {
 					$return['total']['power'] += $cmd->execCmd();
-					foreach ($cmd->getHistory($_startTime, date('Y-m-d 23:59:59', strtotime($_endTime))) as $value) {
+					$perfStep = self::perfStart();
+					$powerHistory = $cmd->getHistory($_startTime, date('Y-m-d 23:59:59', strtotime($_endTime)));
+					self::perfStop($perfStep, 'history power', 'equipment ' . $energy->getId() . ' "' . $energy->getName() . '" power history', is_array($powerHistory) ? count($powerHistory) : null);
+					foreach ($powerHistory as $value) {
 						$datetime = floatval(strtotime($value->getDatetime() . " UTC")) * 1000;
 						if (isset($return['power'][$object->getName()][$datetime])) {
 							$return['power'][$object->getName()][$datetime][1] += floatval($value->getValue());
@@ -293,7 +365,15 @@ class energy extends eqLogic {
 
 				//log::add('energy', 'debug', '-------TOTAL CONSOMMATION------- => ' . $object->getName());
 				// One set of SQL queries per equipment: both loops below read the same data
+				$perfStep = self::perfStart();
 				$energyData = $energy->getData($_startTime, $_endTime);
+				if ($perfStep !== null) {
+					$perfRows = 0;
+					foreach ($energyData as $perfValues) {
+						$perfRows += is_array($perfValues) ? count($perfValues) : 0;
+					}
+					self::perfStop($perfStep, 'sql energy (getData)', 'equipment ' . $energy->getId() . ' "' . $energy->getName() . '" getData', $perfRows);
+				}
 				foreach ($energyData as $key => $values) {
 					if ($key != 'consumptionTotal') {
 						continue;
@@ -364,7 +444,10 @@ class energy extends eqLogic {
 			}
 		}
 
-		foreach ($object->getEqLogic(true, false, 'energy') as $energy) {
+		$perfStep = self::perfStart();
+		$counterCandidates = $object->getEqLogic(true, false, 'energy');
+		self::perfStop($perfStep, 'equipments lookup', 'total counter lookup (' . count($counterCandidates) . ' equipments)');
+		foreach ($counterCandidates as $energy) {
 			if ($energy->getConfiguration('type') == $_energyType && $energy->getConfiguration('totalCounter') == 1) {
 				$counterConsumption = array();
 				$counterConsumptionSum = 0;
@@ -372,7 +455,10 @@ class energy extends eqLogic {
 				$counterCostSum = 0;
 				$cmd = $energy->getCmd(null, 'consumptionTotal');
 				if (is_object($cmd)) {
-					foreach ($cmd->getHistoryEnergy($_startTime, $_endTime) as $value) {
+					$perfStep = self::perfStart();
+					$counterHistory = $cmd->getHistoryEnergy($_startTime, $_endTime);
+					self::perfStop($perfStep, 'sql energy (total counter)', 'total counter ' . $energy->getId() . ' consumption', is_array($counterHistory) ? count($counterHistory) : null);
+					foreach ($counterHistory as $value) {
 						if (!is_numeric($value[1]) || $value[1] == 0) {
 							continue;
 						}
@@ -387,7 +473,10 @@ class energy extends eqLogic {
 				}
 				$cmd = $energy->getCmd(null, 'cost');
 				if (is_object($cmd)) {
-					foreach ($cmd->getHistoryEnergy($_startTime, $_endTime) as $value) {
+					$perfStep = self::perfStart();
+					$counterCostHistory = $cmd->getHistoryEnergy($_startTime, $_endTime);
+					self::perfStop($perfStep, 'sql energy (total counter)', 'total counter ' . $energy->getId() . ' cost', is_array($counterCostHistory) ? count($counterCostHistory) : null);
+					foreach ($counterCostHistory as $value) {
 						if (!is_numeric($value[1]) || $value[1] == 0) {
 							continue;
 						}
@@ -437,6 +526,14 @@ class energy extends eqLogic {
 		}
 		$return['total']['consumption'] = round($return['total']['consumption'], 2);
 		$return['total']['cost'] = round($return['total']['cost'], 2);
+		if ($perfRun !== null) {
+			$powerPoints = 0;
+			foreach ($return['power'] as $powerSeries) {
+				$powerPoints += count($powerSeries);
+			}
+			log::add('energy', 'debug', '[perf] getGraph payload: ' . $powerPoints . ' power points, ' . count($return['totalConsumption']) . ' consumption points, ' . count($return['cost']) . ' cost points, about ' . round(strlen(json_encode($return)) / 1024) . ' KB of JSON');
+			self::perfSummary('getGraph', $perfRun);
+		}
 		return $return;
 	}
 
@@ -661,7 +758,13 @@ class energyCmd extends cmd {
 		$sql .= ' ) as dt
 		GROUP BY date(`datetime`)
 		ORDER BY date(`datetime`) ASC;';
-		return DB::Prepare($sql, $values, DB::FETCH_TYPE_ALL);
+		if (!energy::isPerfEnabled()) {
+			return DB::Prepare($sql, $values, DB::FETCH_TYPE_ALL);
+		}
+		$start = microtime(true);
+		$result = DB::Prepare($sql, $values, DB::FETCH_TYPE_ALL);
+		log::add('energy', 'debug', '[perf]     SQL history of cmd ' . $this->getId() . ' (' . $this->getLogicalId() . '): ' . round((microtime(true) - $start) * 1000) . ' ms, ' . (is_array($result) ? count($result) : 0) . ' rows');
+		return $result;
 	}
 
 	public function dontRemoveCmd() {

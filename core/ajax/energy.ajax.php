@@ -57,6 +57,14 @@ try {
 		if (!in_array($energyType, array('electricity', 'water', 'gas'))) {
 			throw new Exception(__('Type d\'énergie invalide : ', __FILE__) . $energyType);
 		}
+		if (energy::isPerfEnabled()) {
+			// ajax::success() ends the script: log the total duration of the request when PHP shuts down.
+			// Compared with the time felt in the browser, it tells whether the delay is on the server or in the page.
+			$perfRequestStart = $_SERVER['REQUEST_TIME_FLOAT'] ?? microtime(true);
+			register_shutdown_function(function () use ($perfRequestStart, $object) {
+				log::add('energy', 'debug', '[perf] ajax getData for object ' . $object->getId() . ' finished: ' . round((microtime(true) - $perfRequestStart) * 1000) . ' ms since the request started, peak memory ' . round(memory_get_peak_usage(true) / 1048576) . ' MB');
+			});
+		}
 		$energy = energy::getGraph($date['start'] . ' 00:00:00', $date['end'], $object->getId(), $energyType);
 		ajax::success(array(
 			'datas' => $energy,

@@ -44,6 +44,9 @@ class eqLogic {
 		jeedom::$expressions = array();
 		config::$values = array();
 		log::$lines = array();
+		log::$level = 400;
+		DB::$statements = array();
+		DB::$throw = null;
 		history::$emptied = array();
 		cmd::$values = array();
 	}
@@ -291,9 +294,15 @@ class config {
 
 class log {
 	public static $lines = array();
+	/** Log level returned for every log: 100 = debug, 400 = error (the Jeedom default is higher than debug) */
+	public static $level = 400;
 
 	public static function add($_log, $_level, $_message) {
 		self::$lines[] = array($_log, $_level, $_message);
+	}
+
+	public static function getLogLevel($_log) {
+		return self::$level;
 	}
 }
 
