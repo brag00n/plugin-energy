@@ -71,6 +71,11 @@ try {
 			'start' => init('dateStart'),
 			'end' => init('dateEnd'),
 		);
+		foreach ($date as $key => $value) {
+			if ($value != '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+				throw new Exception(__('Format de date invalide (attendu AAAA-MM-JJ) : ', __FILE__) . $value);
+			}
+		}
 		if ($date['start'] == '') {
 			$date['start'] = date('Y-m-d', strtotime('-1 month'));
 			if (init('groupBy', 'day') == 'month') {
@@ -80,7 +85,11 @@ try {
 		if ($date['end'] == '') {
 			$date['end'] = date('Y-m-d');
 		}
-		$energy = energy::getGraph($date['start'] . ' 00:00:00', $date['end'], $object->getId(), init('energyType'));
+		$energyType = init('energyType', 'electricity');
+		if (!in_array($energyType, array('electricity', 'water', 'gas'))) {
+			throw new Exception(__('Type d\'énergie invalide : ', __FILE__) . $energyType);
+		}
+		$energy = energy::getGraph($date['start'] . ' 00:00:00', $date['end'], $object->getId(), $energyType);
 		ajax::success(array(
 			'datas' => $energy,
 			'date' => $date,

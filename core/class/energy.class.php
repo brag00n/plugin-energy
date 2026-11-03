@@ -307,6 +307,9 @@ class energy extends eqLogic {
 				if ($energy->getConfiguration('type') != $_energyType) {
 					continue;
 				}
+				if (!$energy->hasRight('r')) {
+					continue;
+				}
 				$cmd = $energy->getCmd(null, 'power');
 				if (is_object($cmd)) {
 					$return['total']['power'] += $cmd->execCmd();
