@@ -209,7 +209,7 @@ class energy extends eqLogic {
 						$cmd->setCollectDate($datetime);
 						$cmd->event($totalConsumption + $previous);
 					}
-					$cost = $cost = jeedom::evaluateExpression(str_replace(',', '.', config::byKey('rate' . ucfirst($energy->getConfiguration('type')), 'energy', 0)));
+					$cost = jeedom::evaluateExpression(str_replace(',', '.', config::byKey('rate' . ucfirst($energy->getConfiguration('type')), 'energy', 0)));
 					$calculCost = $totalConsumption * $cost;
 					$cmd = $energy->getCmd(null, 'cost');
 					if (is_object($cmd)) {
