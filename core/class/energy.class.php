@@ -100,7 +100,8 @@ class energy extends eqLogic {
 				}
 				$energy->save();
 				foreach ($consumptions as $name => $consumption) {
-					if ($energy->getConfiguration('totalCounter') == 0 && $consumption > 0) {
+					// Not "== 0": an unset option is '' and '' == 0 is false since PHP 8
+					if ($energy->getConfiguration('totalCounter') != 1 && $consumption > 0) {
 						$cmd = $energy->getCmd(null, 'consumption' . ucfirst($name));
 						if (is_object($cmd)) {
 							$previous = $cmd->execCmd();
