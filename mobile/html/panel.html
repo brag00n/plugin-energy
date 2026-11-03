@@ -1,0 +1,62 @@
+<div class="row" style="width : 100%">
+    <div class="col-xs-5">
+        <input type="date" id="in_dateStart" data-mini="true"> 
+    </div>
+    <div class="col-xs-5">
+        <input type="date" id="in_dateEnd" data-mini="true">
+    </div>
+    <div class="col-xs-2">
+        <a class='ui-btn ui-mini ui-btn-raised clr-primary waves-effect waves-button' id="bt_valideDate"><i class="fa fa-check"></i></a>
+    </div>
+</div>
+<center>
+    <a class='ui-btn ui-mini ui-btn-inline link waves-effect waves-button' data-page="panel" data-plugin="energy" data-value="electricity"><i class="fa fa-bolt"></i> {{Electricité}}</a>
+    <a class='ui-btn ui-mini ui-btn-inline link waves-effect waves-button' data-page="panel" data-plugin="energy" data-value="water"><i class="fa fa-tint"></i> {{Eau}}</a>
+    <a class='ui-btn ui-mini ui-btn-inline link waves-effect waves-button' data-page="panel" data-plugin="energy" data-value="gas"><i class="fa fa-fire"></i> {{Gaz}}</a>
+    <a class='ui-btn ui-mini ui-btn-inline link waves-effect waves-button' data-page="panel" data-plugin="energy" data-value="day">{{Jour}}</a>
+    <a class='ui-btn ui-mini ui-btn-inline link waves-effect waves-button' data-page="panel" data-plugin="energy" data-value="month">{{Mois}}</a>
+</center>
+
+<br/>
+<div id='div_energy'>
+    <div class="nd2-card" style="width:100%">
+        <center>
+            <div class="card-title has-supporting-text">
+                <h5 class="card-subtitle">{{Actuellement sur}}</h5>
+                <h3 class="card-primary-title"><span class="span_objectName"></span></h3>
+            </div>
+            <div class="card-supporting-text has-title">
+              <span><span class="energyAttr" data-l1key="total" data-l2key="power"></span>W - </span>
+              <span class="energyAttr" data-l1key="total" data-l2key="consumption"></span> <span class="energyAttr" data-l1key="consumptionUnite"></span> - 
+              <span class="energyAttr" data-l1key="total" data-l2key="cost"></span> <span class="energyAttr" data-l1key="currency"></span>
+          </div>
+      </center>
+  </div>
+  <div id='div_energyPackbery'>
+      <div>
+        <legend class='chartContainer'>{{Puissance}}</legend>
+        <div class="chartContainer" id='div_graphPower'></div>
+    </div>
+    <div>
+        <legend class='chartContainer'>{{Coût}}</legend>
+        <div class="chartContainer" id='div_graphCost'></div>
+    </div>
+    <div>
+        <legend class='chartContainer'>{{Consommation}}</legend>
+        <div class="chartContainer" id='div_graphDetailConsumption'></div>
+    </div>
+    <div>
+        <legend class='chartContainer'>{{Consommation par objet}}</legend>
+        <div class="chartContainer" id='div_graphDetailConsumptionByObject'></div>
+    </div>
+    <div>
+        <legend class='chartContainer'>{{Consommation par catégorie}}</legend>
+        <div class="chartContainer" id='div_graphDetailConsumptionByCategorie'></div>
+    </div>
+</div>
+</div>
+
+<script>
+    $.include(['plugins/energy/mobile/js/panel.js'], function () {
+    });
+</script>
