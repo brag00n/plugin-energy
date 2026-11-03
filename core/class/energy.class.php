@@ -279,7 +279,7 @@ class energy extends eqLogic {
 		}
 	}
 
-	public static function getGraph($_startTime = null, $_endTime = null, $_object_id, $_energyType = 'electricity') {
+	public static function getGraph($_startTime, $_endTime, $_object_id, $_energyType = 'electricity') {
 		$return = array(
 			'category' => array('other' => array(), 'light' => array(), 'multimedia' => array(), 'heating' => array(), 'electrical' => array(), 'automatism' => array()),
 			'cost' => array(),
