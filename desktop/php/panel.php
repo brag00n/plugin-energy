@@ -13,19 +13,37 @@ if (!is_object($object)) {
 	throw new Exception('{{Aucun objet racine trouvé}}');
 }
 
+// Request parameters are reflected in HTML attributes and URLs: validate them once here
+$energyType = init('energyType', 'electricity');
+if (!in_array($energyType, array('electricity', 'water', 'gas'))) {
+	$energyType = 'electricity';
+}
+$groupBy = init('groupBy', 'day');
+if (!in_array($groupBy, array('day', 'month'))) {
+	$groupBy = 'day';
+}
+$startDate = init('startDate', '');
+if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $startDate)) {
+	$startDate = '';
+}
+$endDate = init('endDate', '');
+if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $endDate)) {
+	$endDate = '';
+}
+
 sendVarToJs('object_id', $object->getId());
-sendVarToJs('energyType', init('energyType', 'electricity'));
-sendVarToJs('groupBy', init('groupBy', 'day'));
-if (init('groupBy', 'day') == 'day') {
+sendVarToJs('energyType', $energyType);
+sendVarToJs('groupBy', $groupBy);
+if ($groupBy == 'day') {
 	$date = array(
-		'start' => init('startDate', date('Y-m-d', strtotime('-31 days ' . date('Y-m-d')))),
-		'end' => init('endDate', date('Y-m-d')),
+		'start' => ($startDate != '') ? $startDate : date('Y-m-d', strtotime('-31 days ' . date('Y-m-d'))),
+		'end' => ($endDate != '') ? $endDate : date('Y-m-d'),
 	);
 }
-if (init('groupBy', 'day') == 'month') {
+if ($groupBy == 'month') {
 	$date = array(
-		'start' => init('startDate', date('Y-m-d', strtotime('-1 year ' . date('Y-m-d')))),
-		'end' => init('endDate', date('Y-m-d', strtotime('+1 days' . date('Y-m-d')))),
+		'start' => ($startDate != '') ? $startDate : date('Y-m-d', strtotime('-1 year ' . date('Y-m-d'))),
+		'end' => ($endDate != '') ? $endDate : date('Y-m-d', strtotime('+1 days' . date('Y-m-d'))),
 	);
 }
 ?>
@@ -44,9 +62,9 @@ foreach ($allObject as $object_li) {
 	if ($object_li->getIsVisible() == 1) {
 		$margin = 15 * $object_li->parentNumber();
 		if ($object_li->getId() == $object->getId()) {
-			echo '<li class="cursor li_object active" ><a href="index.php?v=d&m=energy&p=panel&object_id=' . $object_li->getId() . '&energyType=' . init('energyType', 'electricity') . '" style="position:relative;left:' . $margin . 'px;">' . $object_li->getHumanName(true) . '</a></li>';
+			echo '<li class="cursor li_object active" ><a href="index.php?v=d&m=energy&p=panel&object_id=' . $object_li->getId() . '&energyType=' . $energyType . '" style="position:relative;left:' . $margin . 'px;">' . $object_li->getHumanName(true) . '</a></li>';
 		} else {
-			echo '<li class="cursor li_object" ><a href="index.php?v=d&m=energy&p=panel&object_id=' . $object_li->getId() . '&energyType=' . init('energyType', 'electricity') . '" style="position:relative;left:' . $margin . 'px;">' . $object_li->getHumanName(true) . '</a></li>';
+			echo '<li class="cursor li_object" ><a href="index.php?v=d&m=energy&p=panel&object_id=' . $object_li->getId() . '&energyType=' . $energyType . '" style="position:relative;left:' . $margin . 'px;">' . $object_li->getHumanName(true) . '</a></li>';
 		}
 	}
 }
@@ -62,7 +80,7 @@ foreach ($allObject as $object_li) {
   <input class="form-control input-sm in_datepicker" id='in_endDate' style="display : inline-block; width: 150px;" value='<?php echo $date['end']?>'/>
   <a class="btn btn-success btn-sm tooltips" id='bt_validChangeDate' title="{{Attention une trop grande plage de dates peut mettre très longtemps à être calculée ou même ne pas s'afficher}}">{{Ok}}</a>
   <center style="display:inline-block;">
-    <?php if (init('energyType', 'electricity') == 'electricity') {?>
+    <?php if ($energyType == 'electricity') {?>
     <span class='label label-success' style="font-size: 0.9em;"><span class="energyAttr" data-l1key="total" data-l2key="power"></span> W</span>
     <span class='label label-primary' style="font-size: 0.9em;"><span class="energyAttr" data-l1key="total" data-l2key="consumption"></span> <span class="energyAttr" data-l1key="consumptionUnite"></span></span>
     <span class='label label-default' style="font-size: 0.9em;"><span class="energyAttr" data-l1key="total" data-l2key="cost"> </span> <span class="energyAttr" data-l1key="currency"></span>
@@ -78,50 +96,50 @@ foreach ($allObject as $object_li) {
 
    <span class="pull-right">
     <?php
-if (init('groupBy', 'day') == 'day') {
-	echo '<a class="btn btn-primary btn-sm" href="index.php?v=d&m=energy&p=panel&groupBy=day&energyType=' . init('energyType', 'electricity') . '&object_id=' . $object->getId() . '">{{Jour}}</a> ';
+if ($groupBy == 'day') {
+	echo '<a class="btn btn-primary btn-sm" href="index.php?v=d&m=energy&p=panel&groupBy=day&energyType=' . $energyType . '&object_id=' . $object->getId() . '">{{Jour}}</a> ';
 } else {
-	echo '<a class="btn btn-default btn-sm" href="index.php?v=d&m=energy&p=panel&groupBy=day&energyType=' . init('energyType', 'electricity') . '&object_id=' . $object->getId() . '">{{Jour}}</a> ';
+	echo '<a class="btn btn-default btn-sm" href="index.php?v=d&m=energy&p=panel&groupBy=day&energyType=' . $energyType . '&object_id=' . $object->getId() . '">{{Jour}}</a> ';
 }
-if (init('groupBy', 'day') == 'month') {
-	echo '<a class="btn btn-primary btn-sm" href="index.php?v=d&m=energy&p=panel&groupBy=month&energyType=' . init('energyType', 'electricity') . '&object_id=' . $object->getId() . '">{{Mois}}</a> ';
+if ($groupBy == 'month') {
+	echo '<a class="btn btn-primary btn-sm" href="index.php?v=d&m=energy&p=panel&groupBy=month&energyType=' . $energyType . '&object_id=' . $object->getId() . '">{{Mois}}</a> ';
 } else {
-	echo '<a class="btn btn-default btn-sm" href="index.php?v=d&m=energy&p=panel&groupBy=month&energyType=' . init('energyType', 'electricity') . '&object_id=' . $object->getId() . '">{{Mois}}</a> ';
+	echo '<a class="btn btn-default btn-sm" href="index.php?v=d&m=energy&p=panel&groupBy=month&energyType=' . $energyType . '&object_id=' . $object->getId() . '">{{Mois}}</a> ';
 }
 ?>
    <span class="pull-right">
     <?php
 if (config::byKey('enableElectricity', 'energy') == 1) {
-	if (init('energyType', 'electricity') == 'electricity') {
-		echo '<a class="btn btn-success btn-sm" href="index.php?v=d&m=energy&p=panel&groupBy=' . init('groupBy', 'day') . 'energyType=electricity&object_id=' . $object->getId() . '"><i class="fa fa-bolt"></i> Electricité</a> ';
+	if ($energyType == 'electricity') {
+		echo '<a class="btn btn-success btn-sm" href="index.php?v=d&m=energy&p=panel&groupBy=' . $groupBy . '&energyType=electricity&object_id=' . $object->getId() . '"><i class="fa fa-bolt"></i> Electricité</a> ';
 	} else {
-		echo '<a class="btn btn-default btn-sm" href="index.php?v=d&m=energy&p=panel&groupBy=' . init('groupBy', 'day') . '&energyType=electricity&object_id=' . $object->getId() . '"><i class="fa fa-bolt"></i> Electricité</a> ';
+		echo '<a class="btn btn-default btn-sm" href="index.php?v=d&m=energy&p=panel&groupBy=' . $groupBy . '&energyType=electricity&object_id=' . $object->getId() . '"><i class="fa fa-bolt"></i> Electricité</a> ';
 	}
 }
 if (config::byKey('enableWater', 'energy') == 1) {
-	if (init('energyType', 'electricity') == 'water') {
-		echo '<a class="btn btn-success btn-sm" href="index.php?v=d&m=energy&groupBy=' . init('groupBy', 'day') . '&p=panel&energyType=water&object_id=' . $object->getId() . '"><i class="fa fa-tint"></i> Eau</a> ';
+	if ($energyType == 'water') {
+		echo '<a class="btn btn-success btn-sm" href="index.php?v=d&m=energy&groupBy=' . $groupBy . '&p=panel&energyType=water&object_id=' . $object->getId() . '"><i class="fa fa-tint"></i> Eau</a> ';
 	} else {
-		echo '<a class="btn btn-default btn-sm" href="index.php?v=d&m=energy&groupBy=' . init('groupBy', 'day') . '&p=panel&energyType=water&object_id=' . $object->getId() . '"><i class="fa fa-tint"></i> Eau</a> ';
+		echo '<a class="btn btn-default btn-sm" href="index.php?v=d&m=energy&groupBy=' . $groupBy . '&p=panel&energyType=water&object_id=' . $object->getId() . '"><i class="fa fa-tint"></i> Eau</a> ';
 	}
 }
 if (config::byKey('enableGas', 'energy') == 1) {
-	if (init('energyType', 'electricity') == 'gas') {
-		echo '<a class="btn btn-success btn-sm" href="index.php?v=d&m=energy&groupBy=' . init('groupBy', 'day') . '&p=panel&energyType=gas&object_id=' . $object->getId() . '"><i class="fa fa-fire"></i> Gaz</a> ';
+	if ($energyType == 'gas') {
+		echo '<a class="btn btn-success btn-sm" href="index.php?v=d&m=energy&groupBy=' . $groupBy . '&p=panel&energyType=gas&object_id=' . $object->getId() . '"><i class="fa fa-fire"></i> Gaz</a> ';
 	} else {
-		echo '<a class="btn btn-default btn-sm" href="index.php?v=d&m=energy&groupBy=' . init('groupBy', 'day') . '&p=panel&energyType=gas&object_id=' . $object->getId() . '"><i class="fa fa-fire"></i> Gaz</a> ';
+		echo '<a class="btn btn-default btn-sm" href="index.php?v=d&m=energy&groupBy=' . $groupBy . '&p=panel&energyType=gas&object_id=' . $object->getId() . '"><i class="fa fa-fire"></i> Gaz</a> ';
 	}
 }
 ?>
 </span>
 </legend>
 
-<?php if (init('energyType', 'electricity') == 'electricity') {
+<?php if ($energyType == 'electricity') {
 	?>
 
 <div class="row">
   <div class="col-lg-6">
-   <legend><i class="icon techno-courbes3"></i>  {{Puissance (15min/1h)}} <input id="cb_powerLissage" data-href="<?php echo 'index.php?v=d&m=energy&groupBy=' . init('groupBy', 'day') . '&p=panel&energyType=' . init('energyType', 'electricity') . '&object_id=' . init('object_id', 'day')?>" type="checkbox" data-off-color="warning" <?php if (init('powerDisplay', '1h') == '1h') {echo 'checked';}
+   <legend><i class="icon techno-courbes3"></i>  {{Puissance (15min/1h)}} <input id="cb_powerLissage" data-href="<?php echo 'index.php?v=d&m=energy&groupBy=' . $groupBy . '&p=panel&energyType=' . $energyType . '&object_id=' . $object->getId()?>" type="checkbox" data-off-color="warning" <?php if (init('powerDisplay', '1h') == '1h') {echo 'checked';}
 	?> class="pull-right"/></legend>
    <div id='div_graphPower'></div>
  </div>
