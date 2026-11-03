@@ -284,9 +284,9 @@ class energy extends eqLogic {
 
 
 				//log::add('energy', 'debug', '-------TOTAL CONSOMMATION------- => ' . $object->getName());
-				foreach ($energy->getData($_startTime, $_endTime) as $key => $values) {
-					
-					
+				// One set of SQL queries per equipment: both loops below read the same data
+				$energyData = $energy->getData($_startTime, $_endTime);
+				foreach ($energyData as $key => $values) {
 					if ($key != 'consumptionTotal') {
 						continue;
 					}
@@ -311,7 +311,7 @@ class energy extends eqLogic {
 				if ($energy->getConfiguration('totalCounter') == 1) {
 					continue;
 				}
-				foreach ($energy->getData($_startTime, $_endTime) as $key => $values) {
+				foreach ($energyData as $key => $values) {
 					if ($key == 'consumptionTotal') {
 						continue;
 					}
