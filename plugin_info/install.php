@@ -22,12 +22,9 @@ function energy_update() {
 	if (is_object($cron)) {
 		$cron->remove();
 	}
+	// Saving an equipment recreates its missing commands (postSave): never delete the user's equipments here
 	foreach (energy::byType('energy') as $energy) {
-		if (!is_object($energy->getCmd(null, 'cost'))) {
-			$energy->remove();
-		} else {
-			$energy->save();
-		}
+		$energy->save();
 	}
 }
 ?>
