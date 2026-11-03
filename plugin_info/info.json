@@ -7,11 +7,11 @@
         "es_ES": "Complemento para administrar su consumo de energía",
         "de_DE": "Plugin zur Verwaltung Ihres Energieverbrauchs",
         "pt_PT": "Plugin para gerenciar seu consumo de energia",
-        "ru_RU": "Plugin pour gérer sa consommation énergétique",
-        "id_ID": "Plugin pour gérer sa consommation énergétique",
-        "it_IT": "Plugin pour gérer sa consommation énergétique",
-        "ja_JP": "Plugin pour gérer sa consommation énergétique",
-        "tr": "Plugin pour gérer sa consommation énergétique"
+        "ru_RU": "Плагин для управления энергопотреблением",
+        "id_ID": "Plugin untuk mengelola konsumsi energi Anda",
+        "it_IT": "Plugin per gestire il proprio consumo energetico",
+        "ja_JP": "エネルギー消費量を管理するプラグイン",
+        "tr": "Enerji tüketiminizi yönetmek için eklenti"
     },
     "licence": "AGPL",
     "author": "Loïc",
