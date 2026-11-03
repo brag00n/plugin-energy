@@ -60,8 +60,11 @@ class energy extends eqLogic {
 		return ($hourtime >= $start || $hourtime <= $end);
 	}
 
+	/** Overrides the current time (timestamp) of cron15, only meant for the unit tests. */
+	public static $nowOverride = null;
+
 	public static function cron15() {
-		$datetime = date('Y-m-d H:i:00');
+		$datetime = date('Y-m-d H:i:00', (self::$nowOverride !== null) ? self::$nowOverride : time());
 		$powerTotal = 0;
 		foreach (self::byType('energy',true) as $energy) {
 			if ($energy->getConfiguration('type') == 'electricity') {
@@ -75,7 +78,7 @@ class energy extends eqLogic {
 						$value = floatval(jeedom::evaluateExpression($confEnergy['power']));
 						$power += $value;
 						if ($confEnergy['consumption'] == '') {
-							$nowtime = strtotime('now');
+							$nowtime = (self::$nowOverride !== null) ? self::$nowOverride : strtotime('now');
 							$lastChange = $energy->getConfiguration('lastChangeTime' . $key);
 							$lastValue = $energy->getConfiguration('lastValue' . $key);
 							$consumptions[$confEnergy['category']] += (($lastValue * ($nowtime - $lastChange)) / 3600) / 1000;
@@ -225,6 +228,10 @@ class energy extends eqLogic {
 
 	public static function cronDaily() {
 		sleep(60);
+		self::resetDailyValues();
+	}
+
+	public static function resetDailyValues() {
 		$datetime = date('Y-m-d 00:00:00');
 		foreach (self::byType('energy',true) as $energy) {
 			foreach (array('cost', 'consumptionOther', 'consumptionLight', 'consumptionMultimedia', 'consumptionAutomatism', 'consumptionElectrical', 'consumptionHeating', 'consumptionTotal', 'consumptionHp', 'consumptionHc') as $logicalId) {
