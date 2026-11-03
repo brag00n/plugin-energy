@@ -640,13 +640,8 @@ class energyCmd extends cmd {
 		}
 		$sql .= ' ) as dt
 		GROUP BY date(`datetime`)
-		ORDER BY `datetime` ASC;';
-		try{
-			return DB::Prepare($sql, $values, DB::FETCH_TYPE_ALL);
-		}catch(Exception $e) {
-			$sql = 'SET sql_mode=(SELECT REPLACE(@@sql_mode, "ONLY_FULL_GROUP_BY", ""));' . $sql . 'SET sql_mode=(SELECT CONCAT(@@sql_mode,",ONLY_FULL_GROUP_BY"))';
-			return DB::Prepare($sql, $values, DB::FETCH_TYPE_ALL);
-		}
+		ORDER BY date(`datetime`) ASC;';
+		return DB::Prepare($sql, $values, DB::FETCH_TYPE_ALL);
 	}
 
 	public function dontRemoveCmd() {
