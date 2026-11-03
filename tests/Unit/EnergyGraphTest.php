@@ -170,6 +170,60 @@ final class EnergyGraphTest extends EnergyTestCase {
 		$this->assertSame(array(), $result['category']['light']);
 	}
 
+	public function testEmptyTotalCounterKeepsTheCostAndConsumptionOfTheEquipments(): void {
+		// Regression: a "total counter" whose source is down reads 0 everywhere. It used to wipe the
+		// cost and consumption curves and force the header totals to 0 for the whole object.
+		$object = new jeeObject(1, 'home');
+		$counter = $this->withCommands($this->makeEnergy('electricity', array(), array('totalCounter' => 1)), array(
+			new GraphCmdDouble('consumptionTotal', array(array('2026-01-01', '0'), array('2026-01-02', '0'))),
+			new GraphCmdDouble('cost', array(array('2026-01-01', '0'), array('2026-01-02', '0'))),
+		));
+		$heater = $this->withCommands($this->makeEnergy('electricity'), array(
+			new GraphCmdDouble('consumptionTotal', array(array('2026-01-01', '10'))),
+			new GraphCmdDouble('consumptionHeating', array(array('2026-01-01', '10'))),
+			new GraphCmdDouble('cost', array(array('2026-01-01', '2.5'))),
+		));
+		$this->placeIn($object, $counter, $heater);
+		$result = energy::getGraph('2026-01-01 00:00:00', '2026-01-31', 1);
+		$this->assertSame(array(array($this->ms('2026-01-01'), 2.5)), $result['cost']);
+		$this->assertSame(2.5, $result['total']['cost']);
+		$this->assertSame(10.0, $result['total']['consumption']);
+		$this->assertSame(array(array($this->ms('2026-01-01'), 10.0)), $result['totalConsumption']);
+	}
+
+	public function testTotalCounterWithoutAnyHistoryKeepsTheEquipmentsTotals(): void {
+		$object = new jeeObject(1, 'home');
+		$counter = $this->withCommands($this->makeEnergy('electricity', array(), array('totalCounter' => 1)), array(
+			new GraphCmdDouble('consumptionTotal', array()),
+			new GraphCmdDouble('cost', array()),
+		));
+		$heater = $this->withCommands($this->makeEnergy('electricity'), array(
+			new GraphCmdDouble('consumptionHeating', array(array('2026-01-01', '4'))),
+			new GraphCmdDouble('cost', array(array('2026-01-01', '1'))),
+		));
+		$this->placeIn($object, $counter, $heater);
+		$result = energy::getGraph('2026-01-01 00:00:00', '2026-01-31', 1);
+		$this->assertSame(1.0, $result['total']['cost']);
+		$this->assertSame(4.0, $result['total']['consumption']);
+	}
+
+	public function testTotalCounterWithOnlyCostDoesNotBlankTheConsumption(): void {
+		$object = new jeeObject(1, 'home');
+		$counter = $this->withCommands($this->makeEnergy('electricity', array(), array('totalCounter' => 1)), array(
+			new GraphCmdDouble('consumptionTotal', array(array('2026-01-01', '0'))),
+			new GraphCmdDouble('cost', array(array('2026-01-01', '3'))),
+		));
+		$heater = $this->withCommands($this->makeEnergy('electricity'), array(
+			new GraphCmdDouble('consumptionHeating', array(array('2026-01-01', '6'))),
+			new GraphCmdDouble('cost', array(array('2026-01-01', '1'))),
+		));
+		$this->placeIn($object, $counter, $heater);
+		$result = energy::getGraph('2026-01-01 00:00:00', '2026-01-31', 1);
+		// The counter recorded a cost, so it drives the cost; it recorded no consumption, so the equipments' sum stays
+		$this->assertSame(3.0, $result['total']['cost']);
+		$this->assertSame(6.0, $result['total']['consumption']);
+	}
+
 	public function testTotalsAreRoundedToTwoDecimals(): void {
 		$object = new jeeObject(1, 'home');
 		$energy = $this->withCommands($this->makeEnergy('electricity'), array(

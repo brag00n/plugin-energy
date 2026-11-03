@@ -366,39 +366,49 @@ class energy extends eqLogic {
 
 		foreach ($object->getEqLogic(true, false, 'energy') as $energy) {
 			if ($energy->getConfiguration('type') == $_energyType && $energy->getConfiguration('totalCounter') == 1) {
-				$return['totalConsumption'] = array();
-				$return['cost'] = array();
+				$counterConsumption = array();
+				$counterConsumptionSum = 0;
+				$counterCost = array();
+				$counterCostSum = 0;
 				$cmd = $energy->getCmd(null, 'consumptionTotal');
 				if (is_object($cmd)) {
-					$return['total']['consumption'] = 0;
 					foreach ($cmd->getHistoryEnergy($_startTime, $_endTime) as $value) {
 						if (!is_numeric($value[1]) || $value[1] == 0) {
 							continue;
 						}
 						$value[0] = floatval(strtotime($value[0] . " UTC")) * 1000;
-						if (isset($return['totalConsumption'][$value[0]])) {
-							$return['totalConsumption'][$value[0]][1] += floatval($value[1]);
+						if (isset($counterConsumption[$value[0]])) {
+							$counterConsumption[$value[0]][1] += floatval($value[1]);
 						} else {
-							$return['totalConsumption'][$value[0]] = array($value[0], floatval($value[1]));
+							$counterConsumption[$value[0]] = array($value[0], floatval($value[1]));
 						}
-						$return['total']['consumption'] += floatval($value[1]);
+						$counterConsumptionSum += floatval($value[1]);
 					}
 				}
 				$cmd = $energy->getCmd(null, 'cost');
 				if (is_object($cmd)) {
-					$return['total']['cost'] = 0;
 					foreach ($cmd->getHistoryEnergy($_startTime, $_endTime) as $value) {
 						if (!is_numeric($value[1]) || $value[1] == 0) {
 							continue;
 						}
 						$value[0] = floatval(strtotime($value[0] . " UTC")) * 1000;
-						if (isset($return['cost'][$value[0]])) {
-							$return['cost'][$value[0]][1] += floatval($value[1]);
+						if (isset($counterCost[$value[0]])) {
+							$counterCost[$value[0]][1] += floatval($value[1]);
 						} else {
-							$return['cost'][$value[0]] = array($value[0], floatval($value[1]));
+							$counterCost[$value[0]] = array($value[0], floatval($value[1]));
 						}
-						$return['total']['cost'] += floatval($value[1]);
+						$counterCostSum += floatval($value[1]);
 					}
+				}
+				// The total counter replaces the sums of the equipments only when it recorded something over the period.
+				// A counter whose source is down reads 0 everywhere: it must not blank the consumption and cost curves.
+				if (count($counterConsumption) > 0) {
+					$return['totalConsumption'] = $counterConsumption;
+					$return['total']['consumption'] = $counterConsumptionSum;
+				}
+				if (count($counterCost) > 0) {
+					$return['cost'] = $counterCost;
+					$return['total']['cost'] = $counterCostSum;
 				}
 				break;
 			}
