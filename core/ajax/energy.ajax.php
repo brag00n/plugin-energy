@@ -24,38 +24,6 @@ try {
 		throw new Exception(__('401 - Accès non autorisé', __FILE__));
 	}
 
-	if (init('action') == 'applyCostTo') {
-		if (!isConnect('admin')) {
-			throw new Exception(__('401 - Accès non autorisé', __FILE__));
-		}
-		if (init('cost') == '') {
-			throw new Exception(__('Vous devez d\'abord enregistrer le coût avant de pouvoir l\'appliquer : ', __FILE__) . init('cost'));
-		}
-		$cost = config::byKey(init('cost'), 'energy');
-		if (!is_array($cost)) {
-			throw new Exception(__('Aucun coût trouvé : ', __FILE__) . init('cost'));
-		}
-		$ids = json_decode(init('ids'), true);
-		foreach ($ids as $id) {
-			$eqLogic = eqLogic::byId($id);
-			if (!is_object($eqLogic) || $eqLogic->getEqType_name() != 'energy') {
-				continue;
-			}
-			$eqLogic->setConfiguration('rateMode', $cost['rateMode']);
-			$eqLogic->setConfiguration('rate', $cost['rate']);
-			$eqLogic->setConfiguration('rateHp', $cost['rateHp']);
-			$eqLogic->setConfiguration('rateHc', $cost['rateHc']);
-			$eqLogic->setConfiguration('startHc', $cost['startHc']);
-			$eqLogic->setConfiguration('endHc', $cost['endHc']);
-			$eqLogic->setConfiguration('startHc2', $cost['startHc2']);
-			$eqLogic->setConfiguration('endHc2', $cost['endHc2']);
-			$eqLogic->setConfiguration('startHc3', $cost['startHc3']);
-			$eqLogic->setConfiguration('endHc3', $cost['endHc3']);
-			$eqLogic->save();
-		}
-		ajax::success();
-	}
-
 	if (init('action') == 'getData') {
 		if (init('object_id') == '') {
 			$_GET['object_id'] = $_SESSION['user']->getOptions('defaultDashboardObject');
