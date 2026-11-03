@@ -102,13 +102,136 @@ final class EnergyCron15ElectricityTest extends EnergyTestCase {
 		energy::$nowOverride = $now;
 		$energy = $this->makeEnergy('electricity', array(
 			array('category' => 'light', 'power' => '#5#', 'consumption' => ''),
-		), array('lastChangeTime#5#' => $now - 3600, 'lastValue#5#' => 2000));
+		), array('lastChangeTime#5#' => $now - 900, 'lastValue#5#' => 2000));
 		$this->setExpression('#5#', 2000);
 		energy::cron15();
-		// 2000 W for 1 h = 2 kWh
-		$this->assertEqualsWithDelta(2.0, $this->cmdValue($energy, 'consumptionLight'), 0.01);
-		$this->assertEqualsWithDelta(2.0, $this->cmdValue($energy, 'consumptionTotal'), 0.01);
+		// One normal cycle: 2000 W for 15 min = 0.5 kWh (a gap above the 30 min cap is credited only up to the cap)
+		$this->assertEqualsWithDelta(0.5, $this->cmdValue($energy, 'consumptionLight'), 0.01);
+		$this->assertEqualsWithDelta(0.5, $this->cmdValue($energy, 'consumptionTotal'), 0.01);
 		$this->assertSame(2000.0, $energy->getConfiguration('lastValue#5#'));
+	}
+
+	private function integratedHeater(int $secondsSinceLastCycle, float $lastPower, float $nowPower, array $configuration = array()): energy {
+		$now = mktime(12, 0, 0);
+		energy::$nowOverride = $now;
+		$energy = $this->makeEnergy('electricity', array(
+			array('category' => 'heating', 'power' => '#5#', 'consumption' => ''),
+		), array_merge(array('lastChangeTime#5#' => $now - $secondsSinceLastCycle, 'lastValue#5#' => $lastPower), $configuration));
+		$this->setExpression('#5#', $nowPower);
+		return $energy;
+	}
+
+	public function testLongCronStopDoesNotCreditTheWholeGap(): void {
+		// The production case: a 2000 W radiator last seen "on", cron15 silent for 25 h.
+		// It used to credit 2000 W x 25 h = 50 kWh in one cycle; at most the 30 minute cap is credited now.
+		$energy = $this->integratedHeater(25 * 3600, 2000, 2000);
+		energy::cron15();
+		$this->assertEqualsWithDelta(1.0, $this->cmdValue($energy, 'consumptionHeating'), 0.0001, '2000 W x 30 min');
+		$this->assertEqualsWithDelta(1.0, $this->cmdValue($energy, 'consumptionTotal'), 0.0001);
+	}
+
+	public function testLongCronStopDoesNotInflateTheCost(): void {
+		$this->setConfig('rate', '0.2228');
+		$energy = $this->integratedHeater(25 * 3600, 2000, 2000);
+		energy::cron15();
+		// 1 kWh x 0.2228, not 50 kWh x 0.2228 = 11.14 EUR
+		$this->assertEqualsWithDelta(0.2228, $this->cmdValue($energy, 'cost'), 0.0001);
+	}
+
+	public function testNormalCycleIsStillFullyIntegrated(): void {
+		// 15 minutes at 2000 W = 0.5 kWh, untouched by the cap
+		$energy = $this->integratedHeater(900, 2000, 2000);
+		energy::cron15();
+		$this->assertEqualsWithDelta(0.5, $this->cmdValue($energy, 'consumptionHeating'), 0.0001);
+		$this->assertSame(array(), array_filter(log::$lines, function ($line) {
+			return $line[1] === 'warning';
+		}));
+	}
+
+	public function testOneMissedCycleIsStillCredited(): void {
+		// 30 minutes = exactly one missed cycle: tolerated, fully credited
+		$energy = $this->integratedHeater(1800, 2000, 2000);
+		energy::cron15();
+		$this->assertEqualsWithDelta(1.0, $this->cmdValue($energy, 'consumptionHeating'), 0.0001);
+	}
+
+	public function testGapJustOverTheCapIsCapped(): void {
+		$energy = $this->integratedHeater(1801, 2000, 2000);
+		energy::cron15();
+		$this->assertEqualsWithDelta(1.0, $this->cmdValue($energy, 'consumptionHeating'), 0.0001);
+	}
+
+	public function testCappedGapIsLoggedAsAWarning(): void {
+		$this->integratedHeater(25 * 3600, 2000, 2000);
+		energy::cron15();
+		$warnings = array_values(array_filter(log::$lines, function ($line) {
+			return $line[1] === 'warning';
+		}));
+		$this->assertCount(1, $warnings);
+		$this->assertStringContainsString('Power integration gap capped', $warnings[0][2]);
+		$this->assertStringContainsString('90000 s since the last cycle', $warnings[0][2]);
+		$this->assertStringContainsString('only 1800 s counted at 2000 W', $warnings[0][2]);
+	}
+
+	public function testStateIsRealignedAfterACappedGap(): void {
+		$energy = $this->integratedHeater(25 * 3600, 2000, 0);
+		energy::cron15();
+		$this->assertSame(mktime(12, 0, 0), $energy->getConfiguration('lastChangeTime#5#'));
+		$this->assertSame(0.0, $energy->getConfiguration('lastValue#5#'));
+		// the next normal cycle starts from the new reference: the radiator is now off, nothing more is credited
+		$before = $this->cmdValue($energy, 'consumptionHeating');
+		energy::$nowOverride = mktime(12, 15, 0);
+		energy::cron15();
+		$this->assertEqualsWithDelta($before, $this->cmdValue($energy, 'consumptionHeating'), 0.0001);
+	}
+
+	public function testUnknownPreviousCycleCreditsNothing(): void {
+		// First run of a line, or its state was lost: no reference time, so nothing can be integrated
+		$energy = $this->makeEnergy('electricity', array(
+			array('category' => 'heating', 'power' => '#5#', 'consumption' => ''),
+		), array('lastValue#5#' => 2000));
+		energy::$nowOverride = mktime(12, 0, 0);
+		$this->setExpression('#5#', 2000);
+		energy::cron15();
+		$this->assertSame(0, $this->cmdValue($energy, 'consumptionHeating'));
+	}
+
+	public function testClockGoingBackwardsCreditsNothing(): void {
+		$energy = $this->integratedHeater(-600, 2000, 2000);
+		energy::cron15();
+		$this->assertSame(0, $this->cmdValue($energy, 'consumptionHeating'));
+	}
+
+	public function testIntegrationMaxGapCanBeConfigured(): void {
+		$this->setConfig('energyMaxIntegrationGap', '3600');
+		$energy = $this->integratedHeater(25 * 3600, 2000, 2000);
+		energy::cron15();
+		$this->assertEqualsWithDelta(2.0, $this->cmdValue($energy, 'consumptionHeating'), 0.0001, '2000 W x 1 h');
+	}
+
+	public function testInvalidConfiguredMaxGapFallsBackToTheDefault(): void {
+		foreach (array('0', '-5', 'abc', '') as $invalid) {
+			$this->setConfig('energyMaxIntegrationGap', $invalid);
+			$this->assertSame(1800, energy::integrationMaxGap(), 'value: ' . var_export($invalid, true));
+		}
+	}
+
+	public function testIntegrationElapsedTable(): void {
+		$cases = array(
+			'normal cycle' => array(1000, 1900, 900, false),
+			'exactly the cap' => array(1000, 2800, 1800, false),
+			'over the cap' => array(1000, 5000, 1800, true),
+			'no previous cycle (empty)' => array('', 5000, 0, false),
+			'no previous cycle (null)' => array(null, 5000, 0, false),
+			'no previous cycle (zero)' => array(0, 5000, 0, false),
+			'same second' => array(1000, 1000, 0, false),
+			'clock backwards' => array(2000, 1000, 0, false),
+		);
+		foreach ($cases as $name => [$last, $now, $seconds, $capped]) {
+			$result = energy::integrationElapsed($last, $now);
+			$this->assertSame($seconds, $result['seconds'], $name . ' (seconds)');
+			$this->assertSame($capped, $result['capped'], $name . ' (capped)');
+		}
 	}
 
 	public function testTotalCounterOnlyFeedsTheTotalAndHpHcCommands(): void {

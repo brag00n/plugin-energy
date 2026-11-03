@@ -44,6 +44,45 @@ class energy extends eqLogic {
 	}
 
 	/**
+	 * Longest gap, in seconds, that the power integration of cron15 accepts to credit at the last power seen.
+	 * cron15 runs every 15 minutes: 30 minutes tolerates one missed cycle and a slow run, anything longer
+	 * means cron15 was not running and what the equipment did meanwhile is unknown.
+	 * The "energyMaxIntegrationGap" setting of the plugin (seconds) overrides it.
+	 */
+	const INTEGRATION_MAX_GAP = 1800;
+
+	public static function integrationMaxGap() {
+		$configured = intval(config::byKey('energyMaxIntegrationGap', 'energy', 0));
+		return ($configured > 0) ? $configured : self::INTEGRATION_MAX_GAP;
+	}
+
+	/**
+	 * Time to credit at the last power seen, between the previous cycle and now.
+	 *
+	 * - no previous cycle recorded (first run, or the state was lost): nothing can be credited, 0 s;
+	 * - clock going backwards (negative gap): 0 s;
+	 * - gap longer than the maximum: capped (the surplus is NOT credited, see the comment in cron15()).
+	 *
+	 * @param mixed $_lastChange timestamp of the previous cycle, '' or null when unknown
+	 * @param int $_now timestamp of the current cycle
+	 * @return array {seconds: credited seconds, gap: real gap (0 when unknown), capped: bool}
+	 */
+	public static function integrationElapsed($_lastChange, $_now) {
+		if (!is_numeric($_lastChange) || $_lastChange <= 0) {
+			return array('seconds' => 0, 'gap' => 0, 'capped' => false);
+		}
+		$gap = $_now - intval($_lastChange);
+		if ($gap <= 0) {
+			return array('seconds' => 0, 'gap' => $gap, 'capped' => false);
+		}
+		$max = self::integrationMaxGap();
+		if ($gap > $max) {
+			return array('seconds' => $max, 'gap' => $gap, 'capped' => true);
+		}
+		return array('seconds' => $gap, 'gap' => $gap, 'capped' => false);
+	}
+
+	/**
 	 * Tells if an hour (format Gi, e.g. 2230) is inside a range, handling ranges crossing midnight (e.g. 2200 -> 0600).
 	 * An unset range (negative value, or start equal to end) never matches.
 	 */
@@ -137,10 +176,22 @@ class energy extends eqLogic {
 						$value = floatval(jeedom::evaluateExpression($confEnergy['power']));
 						$power += $value;
 						if ($confEnergy['consumption'] == '') {
+							// Line with a power but no energy counter: the consumption is the integral of the power over time.
+							// Each cycle credits "last power seen x time elapsed since the previous cycle".
+							//
+							// Case handled here: when cron15 stops for a long time (Jeedom restart, plugin or cron not running...),
+							// the first cycle afterwards used to apply the last power seen BEFORE the stop to the WHOLE gap.
+							// Example seen in production: a 2000 W radiator last seen "on", cron15 silent for 25 h, so the first
+							// cycle credited 2000 W x 25 h = 50 kWh (and about 11 EUR) that nobody consumed.
+							// We cannot know what happened during the gap, so the credited time is capped (see integrationElapsed()).
 							$nowtime = (self::$nowOverride !== null) ? self::$nowOverride : strtotime('now');
 							$lastChange = $energy->getConfiguration('lastChangeTime' . $key);
 							$lastValue = $energy->getConfiguration('lastValue' . $key);
-							$consumptions[$confEnergy['category']] += (($lastValue * ($nowtime - $lastChange)) / 3600) / 1000;
+							$elapsed = self::integrationElapsed($lastChange, $nowtime);
+							if ($elapsed['capped']) {
+								log::add('energy', 'warning', 'Power integration gap capped for ' . $energy->getHumanName() . ' (' . $key . ') : ' . $elapsed['gap'] . ' s since the last cycle, only ' . $elapsed['seconds'] . ' s counted at ' . $lastValue . ' W');
+							}
+							$consumptions[$confEnergy['category']] += (($lastValue * $elapsed['seconds']) / 3600) / 1000;
 							$energy->setConfiguration('lastChangeTime' . $key, $nowtime);
 							$energy->setConfiguration('lastValue' . $key, $value);
 						}
