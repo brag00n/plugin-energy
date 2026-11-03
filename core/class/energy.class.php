@@ -555,133 +555,34 @@ class energy extends eqLogic {
 			$cmd->setIsVisible($this->getConfiguration('visiblePower', 0));
 			$cmd->save();
 
-			$cmd = $this->getCmd(null, 'consumptionLight');
-			if (!is_object($cmd)) {
-				$cmd = new energyCmd();
-				$cmd->setLogicalId('consumptionLight');
-				$cmd->setTemplate('dashboard', 'tile');
-				$cmd->setConfiguration('historizeMode', 'max');
-				$cmd->setIsHistorized(1);
+			$categories = array(
+				'consumptionLight' => array(__('Consommation Lumière', __FILE__), 'visibleConsumptionLight'),
+				'consumptionOther' => array(__('Consommation Autre', __FILE__), 'visibleConsumptionOther'),
+				'consumptionMultimedia' => array(__('Consommation Multimedia', __FILE__), 'visibleConsumptionMultimedia'),
+				'consumptionAutomatism' => array(__('Consommation Automatisme', __FILE__), 'visibleConsumptionAutomatism'),
+				'consumptionElectrical' => array(__('Consommation Electromenager', __FILE__), 'visibleConsumptionElectrical'),
+				'consumptionHeating' => array(__('Consommation Chauffage', __FILE__), 'visibleConsumptionHeating'),
+				'consumptionHp' => array(__('Consommation HP', __FILE__), 'visibleConsumptionHP'),
+				'consumptionHc' => array(__('Consommation HC', __FILE__), 'visibleConsumptionHC'),
+			);
+			foreach ($categories as $logicalId => $categoryInfo) {
+				$cmd = $this->getCmd(null, $logicalId);
+				if (!is_object($cmd)) {
+					$cmd = new energyCmd();
+					$cmd->setLogicalId($logicalId);
+					$cmd->setTemplate('dashboard', 'tile');
+					$cmd->setConfiguration('historizeMode', 'max');
+					$cmd->setIsHistorized(1);
+				}
+				$cmd->setName($categoryInfo[0]);
+				$cmd->setEqLogic_id($this->getId());
+				$cmd->setType('info');
+				$cmd->setSubType('numeric');
+				$cmd->setUnite($unite);
+				$cmd->setIsVisible($this->getConfiguration($categoryInfo[1], 0));
+				$cmd->save();
 			}
-			$cmd->setName(__('Consommation Lumière', __FILE__));
-			$cmd->setEqLogic_id($this->getId());
-			$cmd->setType('info');
-			$cmd->setSubType('numeric');
-			$cmd->setUnite($unite);
-			$cmd->setIsVisible($this->getConfiguration('visibleConsumptionLight', 0));
-			$cmd->save();
 
-			$cmd = $this->getCmd(null, 'consumptionOther');
-			if (!is_object($cmd)) {
-				$cmd = new energyCmd();
-				$cmd->setLogicalId('consumptionOther');
-				$cmd->setTemplate('dashboard', 'tile');
-				$cmd->setConfiguration('historizeMode', 'max');
-				$cmd->setIsHistorized(1);
-			}
-			$cmd->setName(__('Consommation Autre', __FILE__));
-			$cmd->setEqLogic_id($this->getId());
-			$cmd->setType('info');
-			$cmd->setSubType('numeric');
-			$cmd->setUnite($unite);
-			$cmd->setIsVisible($this->getConfiguration('visibleConsumptionOther', 0));
-			$cmd->save();
-
-			$cmd = $this->getCmd(null, 'consumptionMultimedia');
-			if (!is_object($cmd)) {
-				$cmd = new energyCmd();
-				$cmd->setLogicalId('consumptionMultimedia');
-				$cmd->setTemplate('dashboard', 'tile');
-				$cmd->setConfiguration('historizeMode', 'max');
-				$cmd->setIsHistorized(1);
-			}
-			$cmd->setName(__('Consommation Multimedia', __FILE__));
-			$cmd->setEqLogic_id($this->getId());
-			$cmd->setType('info');
-			$cmd->setSubType('numeric');
-			$cmd->setUnite($unite);
-			$cmd->setIsVisible($this->getConfiguration('visibleConsumptionMultimedia', 0));
-			$cmd->save();
-
-			$cmd = $this->getCmd(null, 'consumptionAutomatism');
-			if (!is_object($cmd)) {
-				$cmd = new energyCmd();
-				$cmd->setLogicalId('consumptionAutomatism');
-				$cmd->setTemplate('dashboard', 'tile');
-				$cmd->setConfiguration('historizeMode', 'max');
-				$cmd->setIsHistorized(1);
-			}
-			$cmd->setName(__('Consommation Automatisme', __FILE__));
-			$cmd->setEqLogic_id($this->getId());
-			$cmd->setType('info');
-			$cmd->setSubType('numeric');
-			$cmd->setUnite($unite);
-			$cmd->setIsVisible($this->getConfiguration('visibleConsumptionAutomatism', 0));
-			$cmd->save();
-
-			$cmd = $this->getCmd(null, 'consumptionElectrical');
-			if (!is_object($cmd)) {
-				$cmd = new energyCmd();
-				$cmd->setLogicalId('consumptionElectrical');
-				$cmd->setTemplate('dashboard', 'tile');
-				$cmd->setConfiguration('historizeMode', 'max');
-				$cmd->setIsHistorized(1);
-			}
-			$cmd->setName(__('Consommation Electromenager', __FILE__));
-			$cmd->setEqLogic_id($this->getId());
-			$cmd->setType('info');
-			$cmd->setSubType('numeric');
-			$cmd->setUnite($unite);
-			$cmd->setIsVisible($this->getConfiguration('visibleConsumptionElectrical', 0));
-			$cmd->save();
-
-			$cmd = $this->getCmd(null, 'consumptionHeating');
-			if (!is_object($cmd)) {
-				$cmd = new energyCmd();
-				$cmd->setLogicalId('consumptionHeating');
-				$cmd->setTemplate('dashboard', 'tile');
-				$cmd->setConfiguration('historizeMode', 'max');
-				$cmd->setIsHistorized(1);
-			}
-			$cmd->setName(__('Consommation Chauffage', __FILE__));
-			$cmd->setEqLogic_id($this->getId());
-			$cmd->setType('info');
-			$cmd->setSubType('numeric');
-			$cmd->setUnite($unite);
-			$cmd->setIsVisible($this->getConfiguration('visibleConsumptionHeating', 0));
-			$cmd->save();
-
-			$cmd = $this->getCmd(null, 'consumptionHp');
-			if (!is_object($cmd)) {
-				$cmd = new energyCmd();
-				$cmd->setLogicalId('consumptionHp');
-				$cmd->setTemplate('dashboard', 'tile');
-				$cmd->setConfiguration('historizeMode', 'max');
-				$cmd->setIsHistorized(1);
-			}
-			$cmd->setName(__('Consommation HP', __FILE__));
-			$cmd->setEqLogic_id($this->getId());
-			$cmd->setType('info');
-			$cmd->setSubType('numeric');
-			$cmd->setUnite($unite);
-			$cmd->setIsVisible($this->getConfiguration('visibleConsumptionHP', 0));
-			$cmd->save();
-
-			$cmd = $this->getCmd(null, 'consumptionHc');
-			if (!is_object($cmd)) {
-				$cmd = new energyCmd();
-				$cmd->setLogicalId('consumptionHc');
-				$cmd->setTemplate('dashboard', 'tile');
-				$cmd->setConfiguration('historizeMode', 'max');
-				$cmd->setIsHistorized(1);
-			}
-			$cmd->setName(__('Consommation HC', __FILE__));
-			$cmd->setEqLogic_id($this->getId());
-			$cmd->setType('info');
-			$cmd->setSubType('numeric');
-			$cmd->setUnite($unite);
-			$cmd->setIsVisible($this->getConfiguration('visibleConsumptionHC', 0));
-			$cmd->save();
 		} else {
 			$this->setConfiguration('totalCounter', 1);
 		}
