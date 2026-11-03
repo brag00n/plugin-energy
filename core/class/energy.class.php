@@ -85,9 +85,14 @@ class energy extends eqLogic {
 					}
 					if ($confEnergy['consumption'] != '') {
 						$previous = $energy->getConfiguration('previous' . $key, 0);
-						$value = floatval(jeedom::evaluateExpression($confEnergy['consumption']));
+						$rawValue = jeedom::evaluateExpression($confEnergy['consumption']);
+						$value = floatval($rawValue);
 						if (($value - $previous) >= 0) {
 							$consumptions[$confEnergy['category']] += ($value - $previous);
+							$energy->setConfiguration('previous' . $key, $value);
+						} elseif (is_numeric($rawValue)) {
+							// Counter was reset or replaced: realign on the new index, otherwise nothing is counted until it exceeds the old one
+							log::add('energy', 'debug', 'Counter reset detected for ' . $energy->getHumanName() . ' (' . $key . ') : ' . $previous . ' => ' . $value);
 							$energy->setConfiguration('previous' . $key, $value);
 						}
 					}
@@ -184,9 +189,14 @@ class energy extends eqLogic {
 				foreach ($energy->getConfiguration('confEnergy') as $confEnergy) {
 					$key = self::getConfEnergyKey($confEnergy, $position);
 					$previous = $energy->getConfiguration('previous' . $key, 0);
-					$value = floatval(evaluate(cmd::cmdToValue($confEnergy['consumption'])));
+					$rawValue = evaluate(cmd::cmdToValue($confEnergy['consumption']));
+					$value = floatval($rawValue);
 					if (($value - $previous) >= 0) {
 						$totalConsumption += ($value - $previous);
+						$energy->setConfiguration('previous' . $key, $value);
+					} elseif (is_numeric($rawValue)) {
+						// Counter was reset or replaced: realign on the new index
+						log::add('energy', 'debug', 'Counter reset detected for ' . $energy->getHumanName() . ' (' . $key . ') : ' . $previous . ' => ' . $value);
 						$energy->setConfiguration('previous' . $key, $value);
 					}
 					$position++;
