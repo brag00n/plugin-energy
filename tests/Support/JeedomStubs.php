@@ -290,6 +290,10 @@ class config {
 		$k = $_plugin . '::' . $_key;
 		return array_key_exists($k, self::$values) ? self::$values[$k] : $_default;
 	}
+
+	public static function save($_key, $_value, $_plugin = 'core') {
+		self::$values[$_plugin . '::' . $_key] = $_value;
+	}
 }
 
 class log {
