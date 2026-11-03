@@ -25,6 +25,9 @@ try {
 	}
 
 	if (init('action') == 'applyCostTo') {
+		if (!isConnect('admin')) {
+			throw new Exception(__('401 - Accès non autorisé', __FILE__));
+		}
 		if (init('cost') == '') {
 			throw new Exception(__('Vous devez d\'abord enregistrer le coût avant de pouvoir l\'appliquer : ', __FILE__) . init('cost'));
 		}
@@ -90,8 +93,11 @@ try {
 	}
 
 	if (init('action') == 'emptyHistory') {
+		if (!isConnect('admin')) {
+			throw new Exception(__('401 - Accès non autorisé', __FILE__));
+		}
 		$eqLogic = eqLogic::byId(init('id'));
-		if (!is_object($eqLogic)) {
+		if (!is_object($eqLogic) || $eqLogic->getEqType_name() != 'energy') {
 			throw new Exception(__('Equipement introuvable : ', __FILE__) . init('id'));
 		}
 		$eqLogic->emptyHistory();
