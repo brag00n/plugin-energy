@@ -226,55 +226,12 @@ class energy extends eqLogic {
 		sleep(60);
 		$datetime = date('Y-m-d 00:00:00');
 		foreach (self::byType('energy',true) as $energy) {
-			$cmd = $energy->getCmd(null, 'cost');
-			if (is_object($cmd)) {
-				$cmd->setCollectDate($datetime);
-				$cmd->event(0);
-			}
-			$cmd = $energy->getCmd(null, 'consumptionOther');
-			if (is_object($cmd)) {
-				$cmd->setCollectDate($datetime);
-				$cmd->event(0);
-			}
-			$cmd = $energy->getCmd(null, 'consumptionLight');
-			if (is_object($cmd)) {
-				$cmd->setCollectDate($datetime);
-				$cmd->event(0);
-			}
-			$cmd = $energy->getCmd(null, 'consumptionMultimedia');
-			if (is_object($cmd)) {
-				$cmd->setCollectDate($datetime);
-				$cmd->event(0);
-			}
-			$cmd = $energy->getCmd(null, 'consumptionAutomatism');
-			if (is_object($cmd)) {
-				$cmd->setCollectDate($datetime);
-				$cmd->event(0);
-			}
-			$cmd = $energy->getCmd(null, 'consumptionElectrical');
-			if (is_object($cmd)) {
-				$cmd->setCollectDate($datetime);
-				$cmd->event(0);
-			}
-			$cmd = $energy->getCmd(null, 'consumptionHeating');
-			if (is_object($cmd)) {
-				$cmd->setCollectDate($datetime);
-				$cmd->event(0);
-			}
-			$cmd = $energy->getCmd(null, 'consumptionTotal');
-			if (is_object($cmd)) {
-				$cmd->setCollectDate($datetime);
-				$cmd->event(0);
-			}
-			$cmd = $energy->getCmd(null, 'consumptionHp');
-			if (is_object($cmd)) {
-				$cmd->setCollectDate($datetime);
-				$cmd->event(0);
-			}
-			$cmd = $energy->getCmd(null, 'consumptionHc');
-			if (is_object($cmd)) {
-				$cmd->setCollectDate($datetime);
-				$cmd->event(0);
+			foreach (array('cost', 'consumptionOther', 'consumptionLight', 'consumptionMultimedia', 'consumptionAutomatism', 'consumptionElectrical', 'consumptionHeating', 'consumptionTotal', 'consumptionHp', 'consumptionHc') as $logicalId) {
+				$cmd = $energy->getCmd(null, $logicalId);
+				if (is_object($cmd)) {
+					$cmd->setCollectDate($datetime);
+					$cmd->event(0);
+				}
 			}
 		}
 	}
