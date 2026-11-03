@@ -51,33 +51,33 @@ final class EnergyJumpDetectionTest extends EnergyTestCase {
 	// ---- the pieces
 
 	public function testJudgeDoesNotJudgeWithoutEnoughActivity(): void {
-		$verdict = energy::jumpJudge(array('days' => array('2026-11-01' => 2000.0), 'active' => 5), 99999);
+		$verdict = energyAnomalyRules::judge(array('days' => array('2026-11-01' => 2000.0), 'active' => 5), 99999, new energyAnomalyElectricity());
 		$this->assertFalse($verdict['established']);
 		$this->assertFalse($verdict['abnormal']);
 		$this->assertNull($verdict['threshold']);
 	}
 
 	public function testJudgeDoesNotJudgeAProfileMadeOnlyOfZeros(): void {
-		$verdict = energy::jumpJudge(array('days' => array(), 'active' => 500), 1500);
+		$verdict = energyAnomalyRules::judge(array('days' => array(), 'active' => 500), 1500, new energyAnomalyElectricity());
 		$this->assertFalse($verdict['established'], 'a reference of 0 would make every first load a jump');
 		$this->assertFalse($verdict['abnormal']);
 	}
 
 	public function testJudgeThresholdIsTheReferenceTimesTheMargin(): void {
 		$profile = array('days' => array('2026-10-30' => 1000.0, '2026-11-01' => 2000.0), 'active' => 100);
-		$verdict = energy::jumpJudge($profile, 2999);
+		$verdict = energyAnomalyRules::judge($profile, 2999, new energyAnomalyElectricity());
 		$this->assertTrue($verdict['established']);
 		$this->assertEqualsWithDelta(2000.0, $verdict['reference'], 0.001);
 		$this->assertEqualsWithDelta(3000.0, $verdict['threshold'], 0.001);
 		$this->assertFalse($verdict['abnormal']);
-		$this->assertTrue(energy::jumpJudge($profile, 3001)['abnormal']);
+		$this->assertTrue(energyAnomalyRules::judge($profile, 3001, new energyAnomalyElectricity())['abnormal']);
 	}
 
 	public function testLearnKeepsTheHighestRateOfTheDay(): void {
 		$now = mktime(12, 0, 0, 11, 3, 2026);
-		$profile = energy::jumpLearn(array('days' => array(), 'active' => 0), 500, $now);
-		$profile = energy::jumpLearn($profile, 540, $now + 900);
-		$profile = energy::jumpLearn($profile, 400, $now + 1800);
+		$profile = energyAnomalyRules::learn(array('days' => array(), 'active' => 0), 500, $now, new energyAnomalyElectricity());
+		$profile = energyAnomalyRules::learn($profile, 540, $now + 900, new energyAnomalyElectricity());
+		$profile = energyAnomalyRules::learn($profile, 400, $now + 1800, new energyAnomalyElectricity());
 		$this->assertSame(array('2026-11-03' => 540.0), $profile['days']);
 		$this->assertSame(3, $profile['active']);
 	}
@@ -86,7 +86,7 @@ final class EnergyJumpDetectionTest extends EnergyTestCase {
 		// Without this cap, a cycle just under the threshold would be learned in full and let a stronger one through
 		$now = mktime(12, 0, 0, 11, 3, 2026);
 		$profile = array('days' => array('2026-11-03' => 1000.0), 'active' => 100);
-		$profile = energy::jumpLearn($profile, 1400, $now);
+		$profile = energyAnomalyRules::learn($profile, 1400, $now, new energyAnomalyElectricity());
 		$this->assertEqualsWithDelta(1100.0, $profile['days']['2026-11-03'], 0.001, 'a rise of 40 % is learned as 10 %');
 	}
 
@@ -94,21 +94,21 @@ final class EnergyJumpDetectionTest extends EnergyTestCase {
 		$now = mktime(12, 0, 0, 11, 3, 2026);
 		$profile = array('days' => array('2026-11-03' => 1000.0), 'active' => 100);
 		for ($i = 0; $i < 20; $i++) {
-			$profile = energy::jumpLearn($profile, 1400, $now + $i * 900);
+			$profile = energyAnomalyRules::learn($profile, 1400, $now + $i * 900, new energyAnomalyElectricity());
 		}
 		$this->assertEqualsWithDelta(1400.0, max($profile['days']), 0.001, 'the reference reaches the new regime');
 	}
 
 	public function testLearnIgnoresZeroAndNegativeRates(): void {
 		$profile = array('days' => array(), 'active' => 0);
-		$this->assertSame($profile, energy::jumpLearn($profile, 0, 1000));
-		$this->assertSame($profile, energy::jumpLearn($profile, -5, 1000));
+		$this->assertSame($profile, energyAnomalyRules::learn($profile, 0, 1000, new energyAnomalyElectricity()));
+		$this->assertSame($profile, energyAnomalyRules::learn($profile, -5, 1000, new energyAnomalyElectricity()));
 	}
 
 	public function testLearnForgetsDaysOutOfTheWindow(): void {
 		$now = mktime(12, 0, 0, 11, 3, 2026);
 		$profile = array('days' => array(date('Y-m-d', $now - 40 * self::DAY) => 9000.0, date('Y-m-d', $now - 5 * self::DAY) => 100.0), 'active' => 50);
-		$profile = energy::jumpLearn($profile, 200, $now);
+		$profile = energyAnomalyRules::learn($profile, 200, $now, new energyAnomalyElectricity());
 		$this->assertArrayNotHasKey(date('Y-m-d', $now - 40 * self::DAY), $profile['days'], 'an old peak must not set the reference forever');
 		$this->assertCount(2, $profile['days']);
 	}
@@ -117,7 +117,7 @@ final class EnergyJumpDetectionTest extends EnergyTestCase {
 		$energy = $this->makeEnergy('electricity');
 		foreach (array('', 'not json', '[1,2]', '{"days": "x", "active": "y"}', '{"days": {"bad": 5, "2026-11-01": "abc", "2026-11-02": -3, "2026-11-03": 7}, "active": -1}') as $raw) {
 			$energy->setConfiguration('jumpProfile', $raw);
-			$profile = energy::jumpProfile($energy);
+			$profile = energyAnomalyProfile::load($energy);
 			$this->assertIsArray($profile['days']);
 			$this->assertGreaterThanOrEqual(0, $profile['active']);
 		}
@@ -271,7 +271,7 @@ final class EnergyJumpDetectionTest extends EnergyTestCase {
 		$energy = $this->counterEquipment();
 		$end = $this->learn(0.5, 60, mktime(0, 0, 0, 11, 1, 2026));
 		$this->cycle(50, $end);
-		$profile = energy::jumpProfile($energy);
+		$profile = energyAnomalyProfile::load($energy);
 		$this->assertCount(1, $profile['abnormal']);
 		$this->assertSame($end, $profile['abnormal'][0][0]);
 		$this->assertEqualsWithDelta(200000.0, $profile['abnormal'][0][1], 0.5);
@@ -354,7 +354,7 @@ final class EnergyJumpDetectionTest extends EnergyTestCase {
 	public function testTheProfileIsPersistedWithTheEquipment(): void {
 		$energy = $this->counterEquipment();
 		$this->learn(0.5, 30, mktime(0, 0, 0, 11, 1, 2026));
-		$profile = energy::jumpProfile($energy);
+		$profile = energyAnomalyProfile::load($energy);
 		$this->assertSame(30, $profile['active']);
 		$this->assertSame(array('2026-11-01' => 2000.0), $profile['days']);
 	}
@@ -364,7 +364,7 @@ final class EnergyJumpDetectionTest extends EnergyTestCase {
 		$this->learn(0.5, 96 * 45, mktime(0, 0, 0, 10, 1, 2026));
 		$stored = $energy->getConfiguration('jumpProfile');
 		$this->assertLessThan(1500, strlen($stored), 'one value per day over the window, not one per cycle');
-		$this->assertLessThanOrEqual(31, count(energy::jumpProfile($energy)['days']));
+		$this->assertLessThanOrEqual(31, count(energyAnomalyProfile::load($energy)['days']));
 	}
 
 	public function testTheJumpWarningDoesNotChangeWhatIsRecorded(): void {

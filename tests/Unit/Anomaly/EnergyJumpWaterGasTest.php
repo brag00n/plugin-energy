@@ -45,10 +45,18 @@ final class EnergyJumpWaterGasTest extends EnergyTestCase {
 	}
 
 	public function testRateUnits(): void {
-		$this->assertSame('W', energy::jumpRateUnit('kWh'));
-		$this->assertSame('L/h', energy::jumpRateUnit('L'));
-		$this->assertEqualsWithDelta(2000, energy::jumpRate(0.5, 900, 'kWh'), 0.001, '0.5 kWh in 15 min is 2 kW');
-		$this->assertEqualsWithDelta(120, energy::jumpRate(30, 900, 'L'), 0.001, '30 L in 15 min is 120 L/h');
+		$electricity = energyAnomaly::kindFor('electricity');
+		$water = energyAnomaly::kindFor('water');
+		$gas = energyAnomaly::kindFor('gas');
+		$this->assertSame('W', $electricity->rateUnit());
+		$this->assertSame('L/h', $water->rateUnit());
+		$this->assertSame('W', $gas->rateUnit());
+		$this->assertSame('kWh', $electricity->unit());
+		$this->assertSame('L', $water->unit());
+		$this->assertSame('kWh', $gas->unit());
+		$this->assertEqualsWithDelta(2000, $electricity->rate(0.5, 900), 0.001, '0.5 kWh in 15 min is 2 kW');
+		$this->assertEqualsWithDelta(120, $water->rate(30, 900), 0.001, '30 L in 15 min is 120 L/h');
+		$this->assertEqualsWithDelta(2000, $gas->rate(0.5, 900), 0.001, 'gas is counted in kWh like electricity');
 	}
 
 	public function testWaterJumpIsDetectedAndReportedInLitres(): void {
@@ -150,12 +158,12 @@ final class EnergyJumpWaterGasTest extends EnergyTestCase {
 	public function testWaterAndElectricityKeepSeparateProfiles(): void {
 		$water = $this->meter('water');
 		$this->learn(30, 60, mktime(0, 0, 0, 11, 1, 2026));
-		$waterProfile = energy::jumpProfile($water);
+		$waterProfile = energyAnomalyProfile::load($water);
 		$this->assertEqualsWithDelta(120.0, max($waterProfile['days']), 0.01);
 		$electricity = $this->makeEnergy('electricity', array(
 			array('category' => 'heating', 'power' => '', 'consumption' => '#9#'),
 		), array('previous#9#' => 0));
-		$this->assertSame(array(), energy::jumpProfile($electricity)['days'], 'a new equipment starts with an empty profile');
+		$this->assertSame(array(), energyAnomalyProfile::load($electricity)['days'], 'a new equipment starts with an empty profile');
 	}
 
 	public function testJumpDoesNotChangeWhatIsRecordedForWater(): void {

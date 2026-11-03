@@ -15,6 +15,13 @@ $source = preg_replace('/^require_once .*core\.inc\.php.*;\s*$/m', '', $source, 
 if ($count !== 1) {
 	throw new RuntimeException('Could not strip the Jeedom core require from energy.class.php: update tests/bootstrap.php');
 }
+// The class is loaded from a temporary copy, so the paths relative to its own file (the anomaly detection folder)
+// must point to the real folder instead. When the anomaly detection has been removed from the plugin (see
+// energyAnomaly.class.php), there is nothing to redirect: that is fine.
+$source = str_replace("dirname(__FILE__) . '/anomaly/", var_export(realpath(__DIR__ . '/../core/class') . '/anomaly/', true) . " . '", $source, $anomalyCount);
+if ($anomalyCount < 1 && strpos($source, 'ANOMALY') !== false) {
+	throw new RuntimeException('Could not redirect the anomaly folder of energy.class.php: update tests/bootstrap.php');
+}
 $file = tempnam(sys_get_temp_dir(), 'energy_class_');
 file_put_contents($file, $source);
 register_shutdown_function(function () use ($file) {

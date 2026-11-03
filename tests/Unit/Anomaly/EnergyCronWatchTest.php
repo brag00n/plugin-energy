@@ -34,41 +34,41 @@ final class EnergyCronWatchTest extends EnergyTestCase {
 	// ---- cronRecord(): memory of the cycles and intervals
 
 	public function testFirstCycleHasNoInterval(): void {
-		$result = energy::cronRecord(1000);
+		$result = energyAnomalyCron::record(1000);
 		$this->assertNull($result['interval']);
 		$this->assertSame(array(), $result['intervals']);
 		$this->assertFalse($result['late']);
 	}
 
 	public function testIntervalsAreComputedBetweenCycles(): void {
-		energy::cronRecord(1000);
-		energy::cronRecord(1900);
-		$result = energy::cronRecord(2810);
+		energyAnomalyCron::record(1000);
+		energyAnomalyCron::record(1900);
+		$result = energyAnomalyCron::record(2810);
 		$this->assertSame(910, $result['interval']);
 		$this->assertSame(array(900, 910), $result['intervals']);
 		$this->assertFalse($result['late']);
 	}
 
 	public function testLateCycleIsDetected(): void {
-		energy::cronRecord(1000);
-		energy::cronRecord(1900);
-		$result = energy::cronRecord(1900 + 25 * 3600);
+		energyAnomalyCron::record(1000);
+		energyAnomalyCron::record(1900);
+		$result = energyAnomalyCron::record(1900 + 25 * 3600);
 		$this->assertSame(90000, $result['interval']);
 		$this->assertTrue($result['late']);
 	}
 
 	public function testExactlyTheToleratedGapIsNotLate(): void {
-		energy::cronRecord(1000);
-		$this->assertFalse(energy::cronRecord(1000 + 1800)['late']);
-		energy::cronRecord(10000);
-		$this->assertTrue(energy::cronRecord(10000 + 1801)['late']);
+		energyAnomalyCron::record(1000);
+		$this->assertFalse(energyAnomalyCron::record(1000 + 1800)['late']);
+		energyAnomalyCron::record(10000);
+		$this->assertTrue(energyAnomalyCron::record(10000 + 1801)['late']);
 	}
 
 	public function testOnlyTheLastFiveIntervalsAreReported(): void {
 		$t = 1000;
 		for ($i = 0; $i < 10; $i++) {
 			$t += 900;
-			$result = energy::cronRecord($t);
+			$result = energyAnomalyCron::record($t);
 		}
 		$this->assertCount(5, $result['intervals']);
 	}
@@ -77,45 +77,46 @@ final class EnergyCronWatchTest extends EnergyTestCase {
 		$t = 1000;
 		for ($i = 0; $i < 40; $i++) {
 			$t += 900;
-			energy::cronRecord($t);
+			energyAnomalyCron::record($t);
 		}
-		$this->assertCount(12, energy::cronHistory());
+		$this->assertCount(12, energyAnomalyCron::history());
 	}
 
 	public function testHistorySurvivesAsStoredConfiguration(): void {
-		energy::cronRecord(1000);
-		energy::cronRecord(1900);
-		$this->assertSame(array(1000, 1900), energy::cronHistory());
+		energyAnomalyCron::record(1000);
+		energyAnomalyCron::record(1900);
+		$this->assertSame(array(1000, 1900), energyAnomalyCron::history());
 	}
 
 	public function testClockGoingBackwardsRestartsTheHistory(): void {
-		energy::cronRecord(5000);
-		energy::cronRecord(5900);
-		$result = energy::cronRecord(1000);
+		energyAnomalyCron::record(5000);
+		energyAnomalyCron::record(5900);
+		$result = energyAnomalyCron::record(1000);
 		$this->assertNull($result['interval']);
 		$this->assertFalse($result['late']);
-		$this->assertSame(array(1000), energy::cronHistory());
+		$this->assertSame(array(1000), energyAnomalyCron::history());
 	}
 
 	public function testSameSecondIsNotRecordedTwice(): void {
-		energy::cronRecord(1000);
-		$result = energy::cronRecord(1000);
+		energyAnomalyCron::record(1000);
+		$result = energyAnomalyCron::record(1000);
 		$this->assertNull($result['interval']);
-		$this->assertSame(array(1000), energy::cronHistory());
+		$this->assertSame(array(1000), energyAnomalyCron::history());
 	}
 
 	public function testGarbageInTheStoredHistoryIsIgnored(): void {
 		config::$values['energy::cronHistory'] = '[1000, "abc", null, -5, 2000, [3]]';
-		$this->assertSame(array(1000, 2000), energy::cronHistory());
+		$this->assertSame(array(1000, 2000), energyAnomalyCron::history());
 		config::$values['energy::cronHistory'] = 'not json';
-		$this->assertSame(array(), energy::cronHistory());
+		$this->assertSame(array(), energyAnomalyCron::history());
 		config::$values['energy::cronHistory'] = '';
-		$this->assertSame(array(), energy::cronHistory());
+		$this->assertSame(array(), energyAnomalyCron::history());
 	}
 
 	// ---- cron15 trace
 
 	public function testRegularCyclesOnlyLeaveADebugTrace(): void {
+		log::$level = 100;
 		$this->runCycles(array(900, 900));
 		$this->assertSame(array(), $this->warnings());
 		$lines = $this->debugLines('[cron] cycle started');

@@ -19,6 +19,12 @@
 /* * ***************************Includes********************************* */
 require_once dirname(__FILE__) . '/../../../../core/php/core.inc.php';
 
+/* ANOMALY: begin - abnormal consumption detection, self-contained in core/class/anomaly/ (see energyAnomaly.class.php to remove it) */
+foreach (array('Rules', 'Kind', 'Electricity', 'Water', 'Gas', 'Profile', 'Cron', 'Report', '') as $anomalyPart) {
+	require_once dirname(__FILE__) . '/anomaly/energyAnomaly' . $anomalyPart . '.class.php';
+}
+/* ANOMALY: end */
+
 class energy extends eqLogic {
 	/*     * *************************Attributs****************************** */
 
@@ -80,347 +86,6 @@ class energy extends eqLogic {
 			return array('seconds' => $max, 'gap' => $gap, 'capped' => true);
 		}
 		return array('seconds' => $gap, 'gap' => $gap, 'capped' => false);
-	}
-
-	/** Normal period of cron15, in seconds. */
-	const CRON_NOMINAL_INTERVAL = 900;
-
-	/** Number of cron15 cycles remembered to compute the intervals shown in the warnings. */
-	const CRON_HISTORY_SIZE = 12;
-
-	/*
-	 * ADAPTIVE DETECTION OF AN ABNORMAL CONSUMPTION JUMP
-	 *
-	 * Nothing here depends on the kind or the size of the equipment: a 0.8 W standby, a 2 kW radiator, a house
-	 * meter and a 80 kW warehouse are all judged against what THEY did before.
-	 *
-	 * For each equipment and each cron15 cycle:
-	 *   1. the rate of the cycle is the energy credited divided by the REAL duration since the previous cycle
-	 *      (so a counter that legitimately catches up after a cron stop is not a jump: 50 kWh over 25 h is 2 kW);
-	 *   2. the reference is the highest rate of the normal cycles of the last JUMP_WINDOW_DAYS days, kept as one
-	 *      value per day so the stored profile stays tiny;
-	 *   3. the cycle is abnormal when its rate exceeds JUMP_MARGIN x the reference;
-	 *   4. an abnormal cycle is NOT learned, otherwise a jump would raise the reference and hide the next one.
-	 *
-	 * An equipment is only judged once it has shown JUMP_MIN_ACTIVE cycles with a non zero rate. Without that,
-	 * a heater that stayed at 0 all summer would have a reference of 0 and its first cold day would be a "jump"
-	 * (the offline simulation of this rule gave 740 false alerts on such a load, and none with this guard).
-	 *
-	 * Limit: a sudden and lasting change of regime (the load really triples overnight) is flagged once, then
-	 * learned. The warning only reports, the consumption is credited as before.
-	 */
-
-	/** Window, in days, over which the highest normal rate of an equipment is remembered. */
-	const JUMP_WINDOW_DAYS = 30;
-
-	/** Number of cycles with a non zero rate an equipment must have shown before its cycles are judged. */
-	const JUMP_MIN_ACTIVE = 24;
-
-	/** A cycle is abnormal above this multiple of the highest normal rate of the window. */
-	const JUMP_MARGIN = 1.5;
-
-	/**
-	 * How much one cycle can raise the reference, as a multiple of it. A normal cycle above the reference is learned
-	 * only up to reference x JUMP_LEARN_STEP: without this cap, a cycle just under the threshold would be learned in
-	 * full, raise the reference by up to JUMP_MARGIN and let the next, stronger cycle through (a staircase of jumps
-	 * that the detector would follow one step at a time). A real change of regime is still followed, step by step.
-	 */
-	const JUMP_LEARN_STEP = 1.1;
-
-	/**
-	 * Abnormal cycles are not learned (a jump must not raise its own threshold). But a LASTING change of regime
-	 * (heating season starting, a new appliance) would then be flagged on every cycle for the whole window.
-	 * When JUMP_REGIME_COUNT abnormal cycles happen within JUMP_REGIME_HOURS hours, it is no longer an isolated
-	 * jump: the highest of them becomes the new reference and a "regime change" warning says so.
-	 * Limit: a source that keeps jumping 3 times in a few hours is accepted the same way (the warnings before it remain).
-	 */
-	const JUMP_REGIME_COUNT = 3;
-	const JUMP_REGIME_HOURS = 6;
-
-	/**
-	 * Records an abnormal cycle in the profile. Returns {0: the profile, 1: true when the cycle is accepted as a change
-	 * of regime, 2: the abnormal cycles of the recent period, the current one included}.
-	 */
-	public static function jumpAbnormal($_profile, $_rate, $_now) {
-		$since = $_now - intval(self::jumpParam('RegimeHours', self::JUMP_REGIME_HOURS) * 3600);
-		$recent = array();
-		foreach ($_profile['abnormal'] as $entry) {
-			if ($entry[0] >= $since && $entry[0] < $_now) {
-				$recent[] = $entry;
-			}
-		}
-		$recent[] = array($_now, round($_rate, 3));
-		if (count($recent) >= intval(self::jumpParam('RegimeCount', self::JUMP_REGIME_COUNT))) {
-			$top = 0;
-			foreach ($recent as $entry) {
-				$top = max($top, $entry[1]);
-			}
-			$day = date('Y-m-d', $_now);
-			$_profile['days'][$day] = max(isset($_profile['days'][$day]) ? $_profile['days'][$day] : 0, $top);
-			ksort($_profile['days']);
-			$_profile['active']++;
-			$_profile['abnormal'] = array();
-			return array($_profile, true, $recent);
-		}
-		$_profile['abnormal'] = $recent;
-		return array($_profile, false, $recent);
-	}
-
-	/** Tuning value of the detector: the "energyJump<Name>" setting of the plugin when it is a positive number, else the default. */
-	private static function jumpParam($_name, $_default) {
-		$configured = floatval(config::byKey('energyJump' . $_name, 'energy', 0));
-		return ($configured > 0) ? $configured : $_default;
-	}
-
-	/** Traces of the algorithms (jump detection, ...) follow the log level of the plugin: only in debug. */
-	public static function isDebugEnabled() {
-		return log::getLogLevel('energy') <= 100;
-	}
-
-	/**
-	 * Profile learned for an equipment: {days: {YYYY-MM-DD: highest normal rate of the day}, active: number of cycles
-	 * with a non zero rate}. Stored in the configuration of the equipment, like the integration state.
-	 * Anything unreadable in the stored value is ignored.
-	 */
-	public static function jumpProfile($_energy) {
-		$raw = $_energy->getConfiguration('jumpProfile', '');
-		$data = is_array($raw) ? $raw : json_decode((string) $raw, true);
-		$profile = array('days' => array(), 'active' => 0, 'abnormal' => array());
-		if (!is_array($data)) {
-			return $profile;
-		}
-		if (isset($data['active']) && is_numeric($data['active']) && $data['active'] > 0) {
-			$profile['active'] = intval($data['active']);
-		}
-		if (isset($data['abnormal']) && is_array($data['abnormal'])) {
-			foreach ($data['abnormal'] as $entry) {
-				if (is_array($entry) && count($entry) == 2 && is_numeric($entry[0]) && is_numeric($entry[1]) && $entry[0] > 0 && $entry[1] > 0) {
-					$profile['abnormal'][] = array(intval($entry[0]), floatval($entry[1]));
-				}
-			}
-		}
-		if (isset($data['days']) && is_array($data['days'])) {
-			foreach ($data['days'] as $day => $rate) {
-				if (is_string($day) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $day) && is_numeric($rate) && $rate > 0) {
-					$profile['days'][$day] = floatval($rate);
-				}
-			}
-		}
-		return $profile;
-	}
-
-	/**
-	 * Judges a rate against a profile.
-	 *
-	 * @return array {established: the profile is solid enough to judge, reference: highest normal rate of the window,
-	 *                threshold: reference x margin (null when not established), abnormal: bool, minActive: cycles required}
-	 */
-	public static function jumpJudge($_profile, $_rate) {
-		$minActive = intval(self::jumpParam('MinActive', self::JUMP_MIN_ACTIVE));
-		$reference = (count($_profile['days']) > 0) ? max($_profile['days']) : 0;
-		$verdict = array('established' => false, 'reference' => $reference, 'threshold' => null, 'abnormal' => false, 'minActive' => $minActive, 'days' => count($_profile['days']));
-		if ($_profile['active'] < $minActive || $reference <= 0) {
-			return $verdict;
-		}
-		$verdict['established'] = true;
-		$verdict['threshold'] = $reference * self::jumpParam('Margin', self::JUMP_MARGIN);
-		$verdict['abnormal'] = $_rate > $verdict['threshold'];
-		return $verdict;
-	}
-
-	/** Adds a normal cycle to the profile: keeps the highest rate of the day and forgets the days out of the window. */
-	public static function jumpLearn($_profile, $_rate, $_now) {
-		if ($_rate <= 0) {
-			return $_profile;
-		}
-		// Cap the rise of the reference (see JUMP_LEARN_STEP), but only once the profile is established: while it is
-		// being built the first cycles must set the level freely, otherwise a small first cycle (a heater that starts
-		// at the end of a cycle) would lock the reference far below the real level and flag every following cycle.
-		$reference = (count($_profile['days']) > 0) ? max($_profile['days']) : 0;
-		if ($reference > 0 && $_profile['active'] >= intval(self::jumpParam('MinActive', self::JUMP_MIN_ACTIVE))) {
-			$_rate = min($_rate, $reference * self::jumpParam('LearnStep', self::JUMP_LEARN_STEP));
-		}
-		$day = date('Y-m-d', $_now);
-		$_profile['days'][$day] = max(isset($_profile['days'][$day]) ? $_profile['days'][$day] : 0, round($_rate, 3));
-		$_profile['active']++;
-		$oldest = date('Y-m-d', $_now - intval(self::jumpParam('WindowDays', self::JUMP_WINDOW_DAYS)) * 86400);
-		foreach (array_keys($_profile['days']) as $storedDay) {
-			if ($storedDay < $oldest) {
-				unset($_profile['days'][$storedDay]);
-			}
-		}
-		ksort($_profile['days']);
-		return $_profile;
-	}
-
-	/** Timestamps of the last cron15 cycles, oldest first. Anything unreadable in the stored value is ignored. */
-	public static function cronHistory() {
-		$raw = config::byKey('cronHistory', 'energy', '');
-		$list = is_array($raw) ? $raw : json_decode((string) $raw, true);
-		if (!is_array($list)) {
-			return array();
-		}
-		$history = array();
-		foreach ($list as $timestamp) {
-			if (is_numeric($timestamp) && $timestamp > 0) {
-				$history[] = intval($timestamp);
-			}
-		}
-		sort($history);
-		return $history;
-	}
-
-	/**
-	 * Records a cron15 cycle and describes how it follows the previous ones.
-	 *
-	 * This is the only way the plugin can notice that its cron stopped: it cannot run while the cron is stopped,
-	 * so the stop is seen by the first cycle that follows it, from the time elapsed since the previous one.
-	 *
-	 * @param int $_now timestamp of the current cycle
-	 * @return array {interval: seconds since the previous cycle (null when unknown), intervals: the last intervals,
-	 *                oldest first, late: true when the interval is longer than integrationMaxGap()}
-	 */
-	public static function cronRecord($_now) {
-		$history = self::cronHistory();
-		$previous = count($history) > 0 ? end($history) : null;
-		if ($previous !== null && $_now < $previous) {
-			// Clock set back: the old references are meaningless, start again from now
-			$history = array();
-			$previous = null;
-		}
-		$interval = ($previous !== null && $_now > $previous) ? $_now - $previous : null;
-		$intervals = array();
-		for ($i = 1; $i < count($history); $i++) {
-			if ($history[$i] > $history[$i - 1]) {
-				$intervals[] = $history[$i] - $history[$i - 1];
-			}
-		}
-		if ($interval !== null) {
-			$intervals[] = $interval;
-		}
-		if ($previous === null || $_now > $previous) {
-			$history[] = $_now;
-		}
-		config::save('cronHistory', json_encode(array_slice($history, -self::CRON_HISTORY_SIZE)), 'energy');
-		return array(
-			'interval' => $interval,
-			'intervals' => array_slice($intervals, -5),
-			'late' => ($interval !== null && $interval > self::integrationMaxGap()),
-		);
-	}
-
-	/** Traces the cycle that just started: a warning when the cron ran late, a debug line otherwise. */
-	private static function logCronCycle($_cron) {
-		if ($_cron['late']) {
-			log::add('energy', 'warning', 'cron15 ran late: ' . $_cron['interval'] . ' s since the previous cycle (expected about ' . self::CRON_NOMINAL_INTERVAL . ' s, tolerated up to ' . self::integrationMaxGap() . ' s). Last intervals: ' . implode(', ', $_cron['intervals']) . ' s. The cron was not running between these two cycles.');
-			return;
-		}
-		log::add('energy', 'debug', '[cron] cycle started' . ($_cron['interval'] === null ? ' (first recorded cycle)' : ', ' . $_cron['interval'] . ' s since the previous one (expected about ' . self::CRON_NOMINAL_INTERVAL . ' s)'));
-	}
-
-	/**
-	 * Unit of the rate of a quantity: electricity is judged in watts (kWh over time), any other energy
-	 * (water in L, gas in kWh or m3) in "<unit> per hour".
-	 */
-	public static function jumpRateUnit($_unit) {
-		return ($_unit === 'kWh') ? 'W' : $_unit . '/h';
-	}
-
-	/**
-	 * Rate of a cycle: a quantity in kWh is expressed in W (kWh per hour x 1000), which also fits gas counted in kWh;
-	 * any other unit (L of water) in "<unit> per hour". The judgement only compares an equipment with itself,
-	 * so the unit has no influence on the detection, it only makes the logs readable.
-	 */
-	public static function jumpRate($_quantity, $_duration, $_unit = 'kWh') {
-		$perHour = $_quantity / ($_duration / 3600);
-		return ($_unit === 'kWh') ? $perHour * 1000 : $perHour;
-	}
-
-	/**
-	 * Warns when one equipment is credited more energy in a single cycle than it can plausibly consume,
-	 * and gives what is needed to explain it: the cron intervals and the lines that brought the energy.
-	 *
-	 * Case handled: a jump is either (a) a cron that stopped, whose gap lands in one cycle, or (b) a source
-	 * that jumped (an energy counter that skipped, a wrong power). The intervals tell the two apart:
-	 * a long interval points to the cron, normal intervals point to the source.
-	 * Production example: a Bureau radiator credited 50 kWh in one cycle after 25 h without cron15.
-	 *
-	 * @param eqLogic $_energy the equipment
-	 * @param float $_kwh energy credited to it in this cycle
-	 * @param array $_lines {key, category, mode, kwh, info} for each line that brought energy
-	 * @param array $_cron result of cronRecord()
-	 * @return bool true when a warning was logged
-	 */
-	public static function warnConsumptionJump($_energy, $_quantity, $_lines, $_cron, $_now = null, $_unit = 'kWh') {
-		$now = ($_now !== null) ? $_now : time();
-		$name = $_energy->getHumanName();
-		$debug = self::isDebugEnabled();
-		$rateUnit = self::jumpRateUnit($_unit);
-
-		// 1. The rate of the cycle: quantity credited over the real time since the previous cycle.
-		// Without a previous cycle the duration is unknown: the nominal period is used, and the debug line says so.
-		$durationKnown = ($_cron['interval'] !== null && $_cron['interval'] > 0);
-		$duration = $durationKnown ? $_cron['interval'] : self::CRON_NOMINAL_INTERVAL;
-		$rate = self::jumpRate($_quantity, $duration, $_unit);
-
-		// 2. Judge it against what this equipment did before
-		$profile = self::jumpProfile($_energy);
-		$verdict = self::jumpJudge($profile, $rate);
-
-		if ($debug) {
-			log::add('energy', 'debug', '[jump] ' . $name . ': ' . round($_quantity, 3) . ' ' . $_unit . ' over ' . $duration . ' s' . ($durationKnown ? '' : ' (nominal, no previous cycle)') . ' = ' . round($rate, 1) . ' ' . $rateUnit . '; ' . ($verdict['established'] ? 'reference ' . round($verdict['reference'], 1) . ' ' . $rateUnit . ' over ' . count($profile['days']) . ' day(s), threshold ' . round($verdict['threshold'], 1) . ' ' . $rateUnit . ' -> ' . ($verdict['abnormal'] ? 'ABNORMAL' : 'normal') : 'profile not established yet (' . $profile['active'] . '/' . $verdict['minActive'] . ' active cycles, reference ' . round($verdict['reference'], 1) . ' ' . $rateUnit . ') -> not judged'));
-		}
-
-		// 3. A normal cycle is learned; an abnormal one never is, or it would raise the reference and hide the next jump
-		if (!$verdict['abnormal']) {
-			$learned = self::jumpLearn($profile, $rate, $now);
-			if ($learned !== $profile) {
-				$_energy->setConfiguration('jumpProfile', json_encode($learned));
-				if ($debug) {
-					log::add('energy', 'debug', '[jump] ' . $name . ': learned ' . round($rate, 1) . ' ' . $rateUnit . ', profile now ' . count($learned['days']) . ' day(s), highest ' . round(max($learned['days']), 1) . ' ' . $rateUnit . ', ' . $learned['active'] . ' active cycle(s)');
-				}
-			}
-			return false;
-		}
-		list($profile, $accepted, $recent) = self::jumpAbnormal($profile, $rate, $now);
-		$_energy->setConfiguration('jumpProfile', json_encode($profile));
-		$regimeCount = intval(self::jumpParam('RegimeCount', self::JUMP_REGIME_COUNT));
-		$regimeHours = self::jumpParam('RegimeHours', self::JUMP_REGIME_HOURS);
-		if ($debug) {
-			log::add('energy', 'debug', '[jump] ' . $name . ': abnormal cycle ' . ($accepted
-				? 'accepted as a change of regime (' . count($recent) . ' abnormal cycles within ' . $regimeHours . ' h), reference raised to ' . round(max($profile['days']), 1) . ' ' . $rateUnit
-				: 'NOT learned (' . count($recent) . '/' . $regimeCount . ' abnormal cycles within ' . $regimeHours . ' h), the reference is unchanged'));
-		}
-
-		// 4. Explain it with the cron intervals and the lines that brought the energy
-		if ($_cron['interval'] === null) {
-			$cronText = 'no previous cycle recorded, the intervals are unknown';
-			$cause = 'cannot tell whether the cron was stopped';
-		} else {
-			$cronText = $_cron['interval'] . ' s since the previous cycle (expected about ' . self::CRON_NOMINAL_INTERVAL . ' s)';
-			if ($_cron['late']) {
-				$cause = 'the cron was not running for a while, so what accumulated meanwhile lands in this single cycle';
-			} else {
-				$cause = 'the cron intervals are normal, so the jump comes from the source of the lines below (a counter that skipped or a wrong power)';
-			}
-		}
-		$intervals = (count($_cron['intervals']) > 0) ? implode(', ', $_cron['intervals']) . ' s' : 'none';
-		usort($_lines, function ($a, $b) {
-			return $b['kwh'] <=> $a['kwh'];
-		});
-		$details = array();
-		foreach ($_lines as $line) {
-			if ($line['kwh'] > 0) {
-				$details[] = '[' . $line['category'] . ', ' . $line['mode'] . ', ' . $line['key'] . '] ' . round($line['kwh'], 3) . ' ' . $_unit . ' (' . $line['info'] . ')';
-			}
-		}
-		$what = round($_quantity, 3) . ' ' . $_unit . ' credited in ' . $duration . ' s = ' . round($rate, 1) . ' ' . $rateUnit . ', above the threshold of ' . round($verdict['threshold'], 1) . ' ' . $rateUnit . ' (' . self::jumpParam('Margin', self::JUMP_MARGIN) . ' x the highest normal rate of ' . round($verdict['reference'], 1) . ' ' . $rateUnit . ' seen over the last ' . $verdict['days'] . ' day(s)). Cron: ' . $cronText . '; last intervals: ' . $intervals . '. Probable cause: ' . $cause . '. Lines: ' . implode('; ', $details);
-		if ($accepted) {
-			log::add('energy', 'warning', 'Consumption regime change accepted for ' . $name . ': ' . count($recent) . ' abnormal cycles within ' . $regimeHours . ' h, so this is no longer an isolated jump; the reference is raised to ' . round(max($profile['days']), 1) . ' ' . $rateUnit . '. Last cycle: ' . $what);
-		} else {
-			log::add('energy', 'warning', 'Abnormal consumption jump for ' . $name . ': ' . $what);
-		}
-		return true;
 	}
 
 	/**
@@ -506,16 +171,15 @@ class energy extends eqLogic {
 		$cycleNow = (self::$nowOverride !== null) ? self::$nowOverride : time();
 		$datetime = date('Y-m-d H:i:00', $cycleNow);
 		$powerTotal = 0;
-		// Remember this cycle and trace how it follows the previous ones: it is the only evidence that the cron stopped
-		$cron = self::cronRecord($cycleNow);
-		self::logCronCycle($cron);
+		// ANOMALY (1/3): remember this cycle and trace how it follows the previous ones
+		$cron = energyAnomaly::cycleStart($cycleNow);
 		foreach (self::byType('energy',true) as $energy) {
 			if ($energy->getConfiguration('type') == 'electricity') {
 				$totalConsumption = 0;
 				$power = 0;
 				$consumptions = array('other' => 0, 'light' => 0, 'multimedia' => 0, 'heating' => 0, 'electrical' => 0, 'automatism' => 0, 'hc' => 0, 'hp' => 0);
-				// What each line of the equipment brings in this cycle, to explain a consumption jump (see warnConsumptionJump())
-				$jumpLines = array();
+				// ANOMALY (2/3): what each line of the equipment brings in this cycle, to explain a consumption jump
+				$anomalyLines = array();
 				$position = 0;
 				foreach ($energy->getConfiguration('confEnergy') as $confEnergy) {
 					$key = self::getConfEnergyKey($confEnergy, $position);
@@ -540,7 +204,7 @@ class energy extends eqLogic {
 							}
 							$lineKwh = (($lastValue * $elapsed['seconds']) / 3600) / 1000;
 							$consumptions[$confEnergy['category']] += $lineKwh;
-							$jumpLines[] = array('key' => $key, 'category' => $confEnergy['category'], 'mode' => 'integrated power', 'kwh' => $lineKwh, 'info' => floatval($lastValue) . ' W over ' . $elapsed['seconds'] . ' s' . ($elapsed['capped'] ? ' (capped from ' . $elapsed['gap'] . ' s)' : ''));
+							$anomalyLines[] = energyAnomaly::line($key, $confEnergy['category'], 'integrated power', $lineKwh, floatval($lastValue) . ' W over ' . $elapsed['seconds'] . ' s' . ($elapsed['capped'] ? ' (capped from ' . $elapsed['gap'] . ' s)' : ''));
 							$energy->setConfiguration('lastChangeTime' . $key, $nowtime);
 							$energy->setConfiguration('lastValue' . $key, $value);
 						}
@@ -551,7 +215,7 @@ class energy extends eqLogic {
 						$value = floatval($rawValue);
 						if (($value - $previous) >= 0) {
 							$consumptions[$confEnergy['category']] += ($value - $previous);
-							$jumpLines[] = array('key' => $key, 'category' => $confEnergy['category'], 'mode' => 'index delta', 'kwh' => $value - $previous, 'info' => 'index ' . $previous . ' => ' . $value);
+							$anomalyLines[] = energyAnomaly::line($key, $confEnergy['category'], 'index delta', $value - $previous, 'index ' . $previous . ' => ' . $value);
 							$energy->setConfiguration('previous' . $key, $value);
 						} elseif (is_numeric($rawValue)) {
 							// Counter was reset or replaced: realign on the new index, otherwise nothing is counted until it exceeds the old one
@@ -561,8 +225,8 @@ class energy extends eqLogic {
 					}
 					$position++;
 				}
-				// Abnormal jump: more energy credited to this equipment in one cycle than it can plausibly consume
-				self::warnConsumptionJump($energy, array_sum($consumptions), $jumpLines, $cron, $cycleNow);
+				// ANOMALY (3/3): judge the cycle of this equipment (it only reports, what is credited does not change)
+				energyAnomaly::check($energy, array_sum($consumptions), $anomalyLines, $cron, $cycleNow);
 				$energy->save();
 				foreach ($consumptions as $name => $consumption) {
 					// Not "== 0": an unset option is '' and '' == 0 is false since PHP 8
@@ -651,8 +315,8 @@ class energy extends eqLogic {
 				}
 			} else {
 				$totalConsumption = 0;
-				// What each meter brings in this cycle, to explain a consumption jump (see warnConsumptionJump())
-				$jumpLines = array();
+				// ANOMALY (2/3): what each meter brings in this cycle, to explain a consumption jump
+				$anomalyLines = array();
 				$position = 0;
 				foreach ($energy->getConfiguration('confEnergy') as $confEnergy) {
 					$key = self::getConfEnergyKey($confEnergy, $position);
@@ -661,7 +325,7 @@ class energy extends eqLogic {
 					$value = floatval($rawValue);
 					if (($value - $previous) >= 0) {
 						$totalConsumption += ($value - $previous);
-						$jumpLines[] = array('key' => $key, 'category' => $energy->getConfiguration('type'), 'mode' => 'index delta', 'kwh' => $value - $previous, 'info' => 'index ' . $previous . ' => ' . $value);
+						$anomalyLines[] = energyAnomaly::line($key, $energy->getConfiguration('type'), 'index delta', $value - $previous, 'index ' . $previous . ' => ' . $value);
 						$energy->setConfiguration('previous' . $key, $value);
 					} elseif (is_numeric($rawValue)) {
 						// Counter was reset or replaced: realign on the new index
@@ -670,9 +334,8 @@ class energy extends eqLogic {
 					}
 					$position++;
 				}
-				// Same adaptive detection as for electricity, in the unit of the equipment (L for water, kWh for gas)
-				$jumpUnit = $energy->getConfiguration('type') == 'water' ? 'L' : 'kWh';
-				self::warnConsumptionJump($energy, $totalConsumption, $jumpLines, $cron, $cycleNow, $jumpUnit);
+				// ANOMALY (3/3): same detection, handled by the class of the energy (water in L, gas in kWh)
+				energyAnomaly::check($energy, $totalConsumption, $anomalyLines, $cron, $cycleNow);
 				$energy->save();
 				if ($totalConsumption > 0) {
 					$cmd = $energy->getCmd(null, 'consumptionTotal');
