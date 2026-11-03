@@ -43,6 +43,23 @@ class energy extends eqLogic {
 		return $key;
 	}
 
+	/**
+	 * Tells if an hour (format Gi, e.g. 2230) is inside a range, handling ranges crossing midnight (e.g. 2200 -> 0600).
+	 * An unset range (negative value, or start equal to end) never matches.
+	 */
+	public static function isInHourRange($_hourtime, $_start, $_end) {
+		$hourtime = intval($_hourtime);
+		$start = intval($_start);
+		$end = intval($_end);
+		if ($start < 0 || $end < 0 || $start == $end) {
+			return false;
+		}
+		if ($start < $end) {
+			return ($hourtime >= $start && $hourtime <= $end);
+		}
+		return ($hourtime >= $start || $hourtime <= $end);
+	}
+
 	public static function cron15() {
 		$datetime = date('Y-m-d H:i:00');
 		$powerTotal = 0;
@@ -130,15 +147,15 @@ class energy extends eqLogic {
 								'rateHc' => str_replace(',', '.', config::byKey('rateHc', 'energy', 0)),
 							);
 							$hourtime = date('Gi', strtotime($datetime));
-							if ($hourtime >= $rateHour['startHp'] && $hourtime <= $rateHour['endHp'] && $rateHour['startHp'] !== '' && $rateHour['endHp'] !== '') {
+							if (self::isInHourRange($hourtime, $rateHour['startHp'], $rateHour['endHp'])) {
 								$calculCost = $totalConsumption * $rateHour['rateHc'];
 							}
 
-							if ($hourtime >= $rateHour['startHp2'] && $hourtime <= $rateHour['endHp2'] && $rateHour['startHp2'] !== '' && $rateHour['endHp2'] !== '') {
+							if (self::isInHourRange($hourtime, $rateHour['startHp2'], $rateHour['endHp2'])) {
 								$calculCost = $totalConsumption * $rateHour['rateHc'];
 							}
 
-							if ($hourtime >= $rateHour['startHp3'] && $hourtime <= $rateHour['endHp3'] && $rateHour['startHp3'] !== '' && $rateHour['endHp3'] !== '') {
+							if (self::isInHourRange($hourtime, $rateHour['startHp3'], $rateHour['endHp3'])) {
 								$calculCost = $totalConsumption * $rateHour['rateHc'];
 							}
 							if ($calculCost == 0) {
