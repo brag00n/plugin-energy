@@ -169,8 +169,47 @@ class energy extends eqLogic {
 		log::add('energy', 'debug', '[perf] ' . $_label . ' done in ' . round((microtime(true) - $_start) * 1000) . ' ms');
 	}
 
+	/** Tolerance over the subscribed power: a breaker lets a load exceed it for a while (see maxCreditKwh()). */
+	const POWER_TOLERANCE = 1.5;
+
+	/** Nominal duration of a cron15 cycle, in seconds. */
+	const CYCLE_NOMINAL = 900;
+
+	/**
+	 * PHYSICAL LIMIT OF A CREDIT.
+	 * An electric installation cannot consume more than its subscribed power. An index that jumps by more than
+	 * "subscribed power x duration of the cycle" is not a consumption but an error of the source: in production a
+	 * stale reference made a virtual counter read 100 kWh (the cap of the command) in one 15 minute cycle, which was
+	 * credited as 100 kWh (16 EUR). Such a credit is ignored and a warning is logged.
+	 * Setting "energySubscribedPower" (kVA, plugin configuration; 0 or empty = no protection, the default).
+	 * The duration is the REAL time since the previous cycle (never less than a nominal cycle), so a counter that
+	 * legitimately catches up after the cron stopped for a day is not refused. A tolerance of POWER_TOLERANCE is
+	 * applied, because the breaker lets the power exceed the subscribed value for a while.
+	 *
+	 * @param int $_cycleSeconds duration of the cycle, see cycleSeconds()
+	 * @return float|null the largest credit in kWh, null when the protection is off
+	 */
+	public static function maxCreditKwh($_cycleSeconds) {
+		$kva = floatval(str_replace(',', '.', config::byKey('energySubscribedPower', 'energy', 0)));
+		if ($kva <= 0) {
+			return null;
+		}
+		return $kva * self::POWER_TOLERANCE * max($_cycleSeconds, self::CYCLE_NOMINAL) / 3600;
+	}
+
+	/**
+	 * Real duration of the cycle that starts now (seconds since the previous one), remembered in the plugin setting
+	 * "lastCycleTime". Nominal when there is no previous cycle. Called once per cron15 run.
+	 */
+	public static function cycleSeconds($_now) {
+		$last = intval(config::byKey('lastCycleTime', 'energy', 0));
+		config::save('lastCycleTime', $_now, 'energy');
+		return ($last > 0 && $_now > $last) ? $_now - $last : self::CYCLE_NOMINAL;
+	}
+
 	public static function cron15() {
 		$cycleNow = (self::$nowOverride !== null) ? self::$nowOverride : time();
+		$cycleSeconds = self::cycleSeconds($cycleNow);
 		$datetime = date('Y-m-d H:i:00', $cycleNow);
 		$powerTotal = 0;
 		// ANOMALY (1/3): remember this cycle and trace how it follows the previous ones
@@ -215,7 +254,12 @@ class energy extends eqLogic {
 						$previous = $energy->getConfiguration('previous' . $key, 0);
 						$rawValue = jeedom::evaluateExpression($confEnergy['consumption']);
 						$value = floatval($rawValue);
-						if (($value - $previous) >= 0) {
+						$maxCredit = self::maxCreditKwh($cycleSeconds);
+						if (($value - $previous) >= 0 && $maxCredit !== null && ($value - $previous) > $maxCredit) {
+							// Impossible for the subscribed power: ignored, and the index is realigned so that only this cycle is lost
+							log::add('energy', 'warning', 'Credit ignored for ' . $energy->getHumanName() . ' (' . $key . ') : index ' . $previous . ' => ' . $value . ' = ' . round($value - $previous, 3) . ' kWh in ' . $cycleSeconds . ' s, more than ' . round($maxCredit, 3) . ' kWh which is the limit for ' . config::byKey('energySubscribedPower', 'energy', 0) . ' kVA (x' . self::POWER_TOLERANCE . '). The source of the index is probably wrong.');
+							$energy->setConfiguration('previous' . $key, $value);
+						} elseif (($value - $previous) >= 0) {
 							$consumptions[$confEnergy['category']] += ($value - $previous);
 							$anomalyLines[] = energyAnomaly::line($key, $confEnergy['category'], 'index delta', $value - $previous, 'index ' . $previous . ' => ' . $value);
 							$energy->setConfiguration('previous' . $key, $value);

@@ -96,6 +96,13 @@ if (!isConnect()) {
             <input class="form-control configKey input-sm" data-l1key="subscriptionDaily" placeholder="0"/>
         </div>
     </div>
+    <div class="form-group">
+        <label class="col-sm-2 control-label">{{Puissance souscrite (kVA)}}</label>
+        <div class="col-sm-2">
+            <input class="form-control configKey input-sm" data-l1key="energySubscribedPower" placeholder="0"/>
+        </div>
+        <div class="col-sm-6"><span class="help-block">{{Un index qui saute de plus que cette puissance (x1,5) multipliée par la durée du cycle est ignoré avec une alerte. 0 = désactivé.}}</span></div>
+    </div>
     <div class="rate fixed">
         <div class="form-group">
             <label class="col-sm-2 control-label">{{Tarif}}</label>
