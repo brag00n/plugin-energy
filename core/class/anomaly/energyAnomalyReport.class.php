@@ -12,13 +12,17 @@
  *   debug    "[jump] <eq>: ..."                          every decision of the detector, for the analysis afterwards
  *   debug    "[cron] cycle started"                      every cycle of cron15
  *
- * The debug lines only exist at the debug level of the plugin: nothing is built nor written otherwise.
+ * The debug lines only exist at the debug level of the plugin, and only when the "consumption anomaly" box of the
+ * plugin configuration is on: nothing is built nor written otherwise. The warnings are written whatever that box says.
  */
 class energyAnomalyReport {
 
-	/** True when the log level of the plugin is debug. */
+	/**
+	 * True when the debug traces of the detection must be written: the log level of the plugin is debug AND the
+	 * "consumption anomaly" box of the plugin configuration is on (see energyLogTypes). The warnings are not concerned.
+	 */
 	public static function isDebug() {
-		return log::getLogLevel('energy') <= 100;
+		return energyLogTypes::enabled('anomaly');
 	}
 
 	/** One line per cycle of cron15: a warning when the cron ran late, a debug line otherwise. */

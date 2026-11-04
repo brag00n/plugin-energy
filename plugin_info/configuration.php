@@ -148,6 +148,29 @@ if (!isConnect()) {
     </div>
 </div>
 </div>
+
+<legend><i class="fa fa-file-text-o"></i> {{Logs}}</legend>
+<div class="form-group">
+    <div class="col-sm-offset-2 col-sm-10">
+        <div class="alert alert-info">
+            {{Ces cases choisissent quelles traces de debug sont écrites. Elles ne servent que lorsque le niveau de log du plugin est sur « Debug » (Réglages → Système → Configuration → Logs). Les alertes (saut de consommation, cron en retard) sont toujours écrites.}}
+        </div>
+    </div>
+</div>
+<div class="form-group">
+    <label class="col-sm-2 control-label">{{Performance}}</label>
+    <div class="col-sm-4">
+        <input type="checkbox" class="configKey" data-l1key="logPerf"/>
+        <span class="help-block">{{Durées et volumes de l'affichage du tableau de bord (lignes [perf]).}}</span>
+    </div>
+</div>
+<div class="form-group">
+    <label class="col-sm-2 control-label">{{Anomalie de consommation}}</label>
+    <div class="col-sm-4">
+        <input type="checkbox" class="configKey" data-l1key="logAnomaly"/>
+        <span class="help-block">{{Décisions de la détection des sauts de consommation et cycles du cron (lignes [jump] et [cron]).}}</span>
+    </div>
+</div>
 </fieldset>
 </form>
 

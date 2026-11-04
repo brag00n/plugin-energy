@@ -19,6 +19,8 @@
 /* * ***************************Includes********************************* */
 require_once dirname(__FILE__) . '/../../../../core/php/core.inc.php';
 
+require_once dirname(__FILE__) . '/energyLogTypes.class.php';
+
 /* ANOMALY: begin - abnormal consumption detection, self-contained in core/class/anomaly/ (see energyAnomaly.class.php to remove it) */
 foreach (array('Rules', 'Kind', 'Electricity', 'Water', 'Gas', 'Profile', 'Cron', 'Report', '') as $anomalyPart) {
 	require_once dirname(__FILE__) . '/anomaly/energyAnomaly' . $anomalyPart . '.class.php';
@@ -115,14 +117,14 @@ class energy extends eqLogic {
 	private static $perfStats = array();
 
 	/**
-	 * Performance traces are only produced when the log level of the plugin is "debug",
-	 * so they cost nothing in a normal run.
+	 * Performance traces are only produced when the log level of the plugin is "debug" AND the "performance" box of
+	 * the plugin configuration is on (see energyLogTypes), so they cost nothing in a normal run.
 	 */
 	public static function isPerfEnabled() {
 		if (self::$perfOverride !== null) {
 			return self::$perfOverride;
 		}
-		return log::getLogLevel('energy') <= 100;
+		return energyLogTypes::enabled('perf');
 	}
 
 	/** Starts a timer. Returns null when the traces are disabled, which perfStop() ignores. */
