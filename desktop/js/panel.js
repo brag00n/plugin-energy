@@ -137,11 +137,13 @@ function getDatas(_object_id, _dateStart, _dateEnd) {
                 });
             });
             // Total cost of the day, written above the stacked bar (a line series without line, so it does not stack)
+            // Colour of the text of the page: dark text on the light theme, light text on the dark theme
+            var totalColor = $('body').css('color') || '#555555';
             if (hasDetail) series.push({
                 name: '{{Coût total}} ('+data.result.currency+')',
                 data: data.result.datas.cost,
                 type: 'scatter',
-                color: '#2c3e50',
+                color: totalColor,
                 lineWidth: 0,
                 marker: {enabled: false},
                 states: {hover: {lineWidthPlus: 0}},
@@ -163,7 +165,7 @@ function getDatas(_object_id, _dateStart, _dateEnd) {
                     formatter: function () {
                         return Highcharts.numberFormat(this.y, 2) + ' ' + data.result.currency;
                     },
-                    style: {fontWeight: 'bold', textOutline: 'none'}
+                    style: {fontWeight: 'bold', textOutline: 'none', color: totalColor}
                 },
                 tooltip: {
                     valueDecimals: 2
