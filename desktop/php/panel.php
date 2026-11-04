@@ -83,7 +83,8 @@ foreach ($allObject as $object_li) {
     <?php if ($energyType == 'electricity') {?>
     <span class='label label-success' style="font-size: 0.9em;"><span class="energyAttr" data-l1key="total" data-l2key="power"></span> W</span>
     <span class='label label-primary' style="font-size: 0.9em;"><span class="energyAttr" data-l1key="total" data-l2key="consumption"></span> <span class="energyAttr" data-l1key="consumptionUnite"></span></span>
-    <span class='label label-default' style="font-size: 0.9em;"><span class="energyAttr" data-l1key="total" data-l2key="cost"> </span> <span class="energyAttr" data-l1key="currency"></span>
+    <span class='label label-default' style="font-size: 0.9em;"><span class="energyAttr" data-l1key="total" data-l2key="cost"> </span> <span class="energyAttr" data-l1key="currency"></span></span>
+    <span id="span_costShare" style="font-size: 0.9em; display: none;"></span>
     <?php } else {
 	?>
      <span class='label label-primary' style="font-size: 0.9em;"><span class="energyAttr" data-l1key="total" data-l2key="consumption"></span> <span class="energyAttr" data-l1key="consumptionUnite"></span></span>

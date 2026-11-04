@@ -124,7 +124,13 @@ function getDatas(_object_id, _dateStart, _dateEnd) {
                         forced: true,
                         units: [[groupBy,[1]]]
                     },
-                    tooltip: {
+                    tooltip: hasDetail ? {
+                        valueDecimals: 2,
+                        // share of the part in the bar (point.percentage is computed by the stacking)
+                        pointFormatter: function () {
+                            return '<span style="color:' + this.color + '">●</span> ' + this.series.name + ': <b>' + Highcharts.numberFormat(this.y, 2) + '</b> (' + Highcharts.numberFormat(this.percentage, 1) + ' %)<br/>';
+                        }
+                    } : {
                         valueDecimals: 2
                     },
                 });
@@ -162,6 +168,25 @@ function getDatas(_object_id, _dateStart, _dateEnd) {
                     valueDecimals: 2
                 }
             });
+            // Share of HP, HC and unknown over the period shown, next to the total cost of the header
+            var shareLabel = $('#span_costShare');
+            shareLabel.hide().empty();
+            if (hasDetail) {
+                var sums = {}, all = 0;
+                costParts.forEach(function (part) {
+                    sums[part[0]] = 0;
+                    (costDetail[part[0]] || []).forEach(function (point) {
+                        sums[part[0]] += point[1];
+                    });
+                    all += sums[part[0]];
+                });
+                if (all > 0) {
+                    costParts.forEach(function (part) {
+                        shareLabel.append('<span class="label" style="background:' + part[2] + '; margin-right: 3px;">' + part[1].replace('{{', '').replace('}}', '') + ' ' + Highcharts.numberFormat(100 * sums[part[0]] / all, 1) + ' %</span>');
+                    });
+                    shareLabel.show();
+                }
+            }
             drawSimpleGraph('div_graphCost',series);
             
             
