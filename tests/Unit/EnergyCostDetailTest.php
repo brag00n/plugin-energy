@@ -142,4 +142,29 @@ final class EnergyCostDetailTest extends EnergyTestCase {
 		$result = $this->graph();
 		$this->assertSame(array('hp' => array(), 'hc' => array(), 'unknown' => array()), $result['costDetail']);
 	}
+
+	public function testADayTheCounterDidNotRecordKeepsTheSumOfTheEquipments(): void {
+		$this->setConfig('rateMode', 'fixed');
+		$this->setConfig('rate', '0.2');
+		$counter = $this->build(array(
+			new GraphCmdDouble('consumptionTotal', array(array('2026-11-04', '1.5'))),
+			new GraphCmdDouble('cost', array(array('2026-11-04', '0.3'))),
+			new GraphCmdDouble('consumptionHp', array(array('2026-11-04', '1.5'))),
+			new GraphCmdDouble('consumptionHc', array()),
+		), $this->lines(), array('totalCounter' => 1));
+		$heater = $this->build(array(
+			new GraphCmdDouble('consumptionTotal', array(array('2026-11-03', '50'), array('2026-11-04', '40'))),
+			new GraphCmdDouble('cost', array(array('2026-11-03', '10'), array('2026-11-04', '8'))),
+		), array(array('category' => 'heating', 'power' => '#5#', 'consumption' => '')));
+		$result = $this->graph($counter, $heater);
+		// 3 November: the counter recorded nothing, the equipments' estimate stays; 4 November: the counter wins
+		$this->assertSame(array(array($this->ms('2026-11-03'), 50.0), array($this->ms('2026-11-04'), 1.5)), $result['totalConsumption']);
+		$this->assertSame(51.5, $result['total']['consumption']);
+		$this->assertSame(array(array($this->ms('2026-11-03'), 10.0), array($this->ms('2026-11-04'), 0.3)), $result['cost']);
+		$this->assertSame(10.3, $result['total']['cost']);
+		$detail = $result['costDetail'];
+		$this->assertEqualsWithDelta(10.0, $detail['unknown'][0][1], 0.0001);
+		$this->assertEqualsWithDelta(0.3, $detail['hp'][0][1], 0.0001);
+		$this->assertCount(1, $detail['unknown'], 'the counter day is fully explained by its HP index');
+	}
 }

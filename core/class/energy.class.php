@@ -607,18 +607,43 @@ class energy extends eqLogic {
 						$counterCostSum += floatval($value[1]);
 					}
 				}
-				// The total counter replaces the sums of the equipments only when it recorded something over the period.
+				// The total counter replaces the sums of the equipments DAY BY DAY, only for the days it recorded something.
 				// A counter whose source is down reads 0 everywhere: it must not blank the consumption and cost curves.
+				// A day it did not record (before it was installed or emptied) keeps the sum of the equipments, otherwise
+				// the curve would show a few kWh of the counter next to days of estimates.
 				if (count($counterConsumption) > 0) {
+					$total = $counterConsumptionSum;
+					foreach ($return['totalConsumption'] as $day => $point) {
+						if (!isset($counterConsumption[$day])) {
+							$counterConsumption[$day] = $point;
+							$total += $point[1];
+						}
+					}
 					$return['totalConsumption'] = $counterConsumption;
-					$return['total']['consumption'] = $counterConsumptionSum;
+					$return['total']['consumption'] = $total;
 				}
 				if (count($counterCost) > 0) {
+					$total = $counterCostSum;
+					$daysFromCounter = array_keys($counterCost);
+					foreach ($return['cost'] as $day => $point) {
+						if (!isset($counterCost[$day])) {
+							$counterCost[$day] = $point;
+							$total += $point[1];
+						}
+					}
 					$return['cost'] = $counterCost;
-					$return['total']['cost'] = $counterCostSum;
-					// the split must describe the same cost as the curve: the one of the counter
-					$costSplit = array('hp' => array(), 'hc' => array());
-					self::addCostSplit($costSplit, $energy->getCostSplit($_startTime, $_endTime));
+					$return['total']['cost'] = $total;
+					// the split must describe the same cost as the curve: the counter's for its days, the equipments' otherwise
+					$counterSplit = array('hp' => array(), 'hc' => array());
+					self::addCostSplit($counterSplit, $energy->getCostSplit($_startTime, $_endTime));
+					foreach (array('hp', 'hc') as $part) {
+						foreach ($daysFromCounter as $day) {
+							unset($costSplit[$part][$day]);
+						}
+						foreach ($counterSplit[$part] as $day => $amount) {
+							$costSplit[$part][$day] = $amount;
+						}
+					}
 				}
 				break;
 			}
