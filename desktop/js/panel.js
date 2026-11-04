@@ -439,7 +439,20 @@ function drawSimpleGraph(_el, _serie) {
             }
         },
         xAxis: {
-            type: 'datetime'
+            type: 'datetime',
+            labels: {
+                // First letter of the weekday before the date (L 3. Nov.). Only for the labels that are a day: the
+                // hour labels (06:00) and the month labels are left as they are. The times are UTC shifted, hence getUTCDay.
+                formatter: function () {
+                    var text = this.axis.defaultLabelFormatter.call(this);
+                    var format = this.dateTimeLabelFormat || '';
+                    if (typeof format === 'string' && /%[ed]/.test(format)) {
+                        var letters = ['{{D}}', '{{L}}', '{{M}}', '{{M}}', '{{J}}', '{{V}}', '{{S}}'];
+                        return letters[new Date(this.value).getUTCDay()] + ' ' + text;
+                    }
+                    return text;
+                }
+            }
         },
         scrollbar: {
             barBackgroundColor: 'gray',

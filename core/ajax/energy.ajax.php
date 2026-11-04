@@ -45,7 +45,7 @@ try {
 			}
 		}
 		if ($date['start'] == '') {
-			$date['start'] = date('Y-m-d', strtotime('-1 month'));
+			$date['start'] = date('Y-m-d', strtotime('-7 days'));
 			if (init('groupBy', 'day') == 'month') {
 				$date['start'] = date('Y-m-d', strtotime('-1 year'));
 			}

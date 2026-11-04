@@ -36,7 +36,7 @@ sendVarToJs('energyType', $energyType);
 sendVarToJs('groupBy', $groupBy);
 if ($groupBy == 'day') {
 	$date = array(
-		'start' => ($startDate != '') ? $startDate : date('Y-m-d', strtotime('-31 days ' . date('Y-m-d'))),
+		'start' => ($startDate != '') ? $startDate : date('Y-m-d', strtotime('-7 days ' . date('Y-m-d'))),
 		'end' => ($endDate != '') ? $endDate : date('Y-m-d'),
 	);
 }
