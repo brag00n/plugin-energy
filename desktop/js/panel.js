@@ -129,6 +129,39 @@ function getDatas(_object_id, _dateStart, _dateEnd) {
                     },
                 });
             });
+            // Total cost of the day, written above the stacked bar (a line series without line, so it does not stack)
+            if (hasDetail) series.push({
+                name: '{{Coût total}} ('+data.result.currency+')',
+                data: data.result.datas.cost,
+                type: 'line',
+                color: '#2c3e50',
+                lineWidth: 0,
+                marker: {enabled: false},
+                states: {hover: {lineWidthPlus: 0}},
+                enableMouseTracking: true,
+                unite : data.result.currency,
+                dataGrouping: {
+                    approximation: "sum",
+                    enabled: true,
+                    forced: true,
+                    units: [[groupBy,[1]]]
+                },
+                dataLabels: {
+                    enabled: true,
+                    crop: false,
+                    overflow: 'allow',
+                    allowOverlap: true,
+                    verticalAlign: 'bottom',
+                    y: -4,
+                    formatter: function () {
+                        return Highcharts.numberFormat(this.y, 2) + ' ' + data.result.currency;
+                    },
+                    style: {fontWeight: 'bold', textOutline: 'none'}
+                },
+                tooltip: {
+                    valueDecimals: 2
+                }
+            });
             drawSimpleGraph('div_graphCost',series);
             
             
