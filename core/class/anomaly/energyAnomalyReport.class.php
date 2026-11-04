@@ -48,6 +48,16 @@ class energyAnomalyReport {
 	}
 
 	/** A normal cycle that has been learned. */
+	/** R12: a wrong value learned while the profile was built has been dropped (always written: it was a jump no one could judge). */
+	public static function outliersDropped($_name, $_kind, $_dropped, $_ceiling, $_median) {
+		$u = $_kind->rateUnit();
+		$list = array();
+		foreach ($_dropped as $day => $rate) {
+			$list[] = $day . ': ' . round($rate, 1) . ' ' . $u;
+		}
+		log::add('energy', 'warning', '[jump] ' . $_name . ': while its profile was built, the equipment learned ' . implode(', ', $list) . ', more than ' . round($_ceiling, 1) . ' ' . $u . ' (' . intval(energyAnomalyRules::param($_kind, 'OutlierFactor', energyAnomalyRules::OUTLIER_FACTOR)) . ' x the median of ' . round($_median, 1) . ' ' . $u . '). It is dropped from the profile so that it does not blind the detector.');
+	}
+
 	public static function learned($_name, $_kind, $_rate, $_profile) {
 		if (!self::isDebug()) {
 			return;

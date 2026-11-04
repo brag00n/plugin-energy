@@ -21,7 +21,7 @@ final class EnergyAnomalyStructureTest extends EnergyTestCase {
 	public function testEveryRuleOfTheIndexPointsToAnExistingMethod(): void {
 		$header = $this->anomalySource('energyAnomalyRules.class.php');
 		preg_match_all('/^\s\*\s+(R\d+)\s+.+?\s+([A-Za-z]+)\(\)/m', $header, $matches, PREG_SET_ORDER);
-		$this->assertGreaterThanOrEqual(11, count($matches), 'the index of the rules must list R1 to R11');
+		$this->assertGreaterThanOrEqual(12, count($matches), 'the index of the rules must list R1 to R12');
 		foreach ($matches as $match) {
 			$this->assertTrue(method_exists('energyAnomalyRules', $match[2]), $match[1] . ' points to ' . $match[2] . '() which does not exist');
 		}
@@ -29,14 +29,14 @@ final class EnergyAnomalyStructureTest extends EnergyTestCase {
 
 	public function testEveryRuleIsDescribedInTheCodeAndInTheIndex(): void {
 		$source = $this->anomalySource('energyAnomalyRules.class.php');
-		for ($i = 1; $i <= 11; $i++) {
+		for ($i = 1; $i <= 12; $i++) {
 			$this->assertGreaterThanOrEqual(2, substr_count($source, 'R' . $i . ' '), 'R' . $i . ' must appear in the index and above its method');
 		}
 	}
 
 	public function testEveryParameterOfTheIndexHasADefaultConstant(): void {
 		$source = $this->anomalySource('energyAnomalyRules.class.php');
-		foreach (array('WINDOW_DAYS', 'MIN_ACTIVE', 'MARGIN', 'LEARN_STEP', 'REGIME_COUNT', 'REGIME_HOURS') as $constant) {
+		foreach (array('WINDOW_DAYS', 'MIN_ACTIVE', 'MARGIN', 'LEARN_STEP', 'REGIME_COUNT', 'REGIME_HOURS', 'OUTLIER_FACTOR') as $constant) {
 			$this->assertTrue(defined('energyAnomalyRules::' . $constant), $constant);
 		}
 	}
@@ -73,6 +73,7 @@ final class EnergyAnomalyStructureTest extends EnergyTestCase {
 		$this->assertSame(1, substr_count($source, 'ANOMALY (1/3)'));
 		$this->assertSame(2, substr_count($source, 'ANOMALY (2/3)'), 'electricity and water/gas');
 		$this->assertSame(2, substr_count($source, 'ANOMALY (3/3)'), 'electricity and water/gas');
+		$this->assertSame(1, substr_count($source, 'ANOMALY (4/4)'), 'emptyHistory');
 		$this->assertSame(1, substr_count($source, 'ANOMALY: begin'));
 		$this->assertSame(1, substr_count($source, 'ANOMALY: end'));
 	}
@@ -81,7 +82,7 @@ final class EnergyAnomalyStructureTest extends EnergyTestCase {
 		// Apply the removal procedure written in energyAnomaly.class.php to a copy of the main class and lint it
 		$source = $this->mainClassSource();
 		$source = preg_replace('#/\* ANOMALY: begin.*?ANOMALY: end \*/\s*#s', '', $source);
-		$source = preg_replace('#^[ \t]*// ANOMALY \(\d/3\)[^\n]*\n[^\n]*\n#m', '', $source);
+		$source = preg_replace('#^[ \t]*// ANOMALY \(\d/[34]\)[^\n]*\n[^\n]*\n#m', '', $source);
 		$source = preg_replace('#^[^\n]*energyAnomaly::line\([^\n]*\n#m', '', $source);
 		$this->assertDoesNotMatchRegularExpression('/anomaly/i', $source, 'nothing of the detection must remain in the main class');
 		$file = tempnam(sys_get_temp_dir(), 'energy_removed_');

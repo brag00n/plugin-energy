@@ -9,13 +9,15 @@
  *   2. $anomalyLines[] = energyAnomaly::line(...)                for each line that brings energy to an equipment
  *   3. energyAnomaly::check($energy, $quantity, $lines, ...)    once per equipment, before it is saved
  *
+ * A 4th call, energyAnomaly::forgetProfile($this), is made by energy::emptyHistory().
+ *
  * The detection only REPORTS: it never changes what is credited to an equipment.
  *
  * ---------------------------------------------------------------------------------------------------------
  * TO REMOVE THE DETECTION COMPLETELY
  *   1. delete the folder core/class/anomaly/ and the folder tests/Unit/Anomaly/;
  *   2. in core/class/energy.class.php, delete the block between the markers "ANOMALY: begin" and "ANOMALY: end"
- *      (it requires the folder) and the 3 calls above (search "ANOMALY");
+ *      (it requires the folder) and the 3 calls above and the call of emptyHistory() (search "ANOMALY");
  *   3. optionally, remove the configuration it wrote: the "cronHistory" setting of the plugin and the
  *      "jumpProfile" configuration of each equipment (they are small and harmless if left).
  * Nothing else depends on it.
@@ -25,7 +27,7 @@
  *
  * FILES (core/class/anomaly/)
  *   energyAnomaly.class.php             this file: entry point, one method per step
- *   energyAnomalyRules.class.php        THE RULES R1..R11, each described (read this one to understand or change them)
+ *   energyAnomalyRules.class.php        THE RULES R1..R12, each described (read this one to understand or change them)
  *   energyAnomalyKind.class.php         what differs per energy (base class)
  *   energyAnomalyElectricity.class.php  electricity: kWh, rate in W
  *   energyAnomalyWater.class.php        water: L, rate in L/h
@@ -81,6 +83,14 @@ class energyAnomaly {
 	}
 
 	/**
+	 * 4. Forgets what was learned about an equipment (called when its history is emptied, because the rates learned
+	 *    come from the data that is being erased).
+	 */
+	public static function forgetProfile($_energy) {
+		energyAnomalyProfile::forget($_energy);
+	}
+
+	/**
 	 * 3. Judges the cycle of one equipment, learns it or reports it.
 	 *
 	 * @param eqLogic $_energy the equipment (its profile is updated in memory, the caller saves it)
@@ -110,6 +120,11 @@ class energyAnomaly {
 		// R5, R6, R7: a normal cycle is learned
 		if (!$verdict['abnormal']) {
 			$learned = energyAnomalyRules::learn($profile, $rate, $now, $kind);
+			// R12: once established, a wrong value learned while the profile was built is dropped
+			list($learned, $dropped, $ceiling, $median) = energyAnomalyRules::trimOutliers($learned, $kind);
+			if (count($dropped) > 0) {
+				energyAnomalyReport::outliersDropped($name, $kind, $dropped, $ceiling, $median);
+			}
 			if ($learned !== $profile) {
 				energyAnomalyProfile::store($_energy, $learned);
 				energyAnomalyReport::learned($name, $kind, $rate, $learned);

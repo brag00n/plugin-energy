@@ -654,6 +654,8 @@ class energy extends eqLogic {
 	}
 
 	public function emptyHistory() {
+		// ANOMALY (4/4): the rates learned come from the history that is erased
+		energyAnomaly::forgetProfile($this);
 		foreach ($this->getCmd('info') as $cmd) {
 			history::emptyHistory($cmd->getId());
 			$cmd->save();

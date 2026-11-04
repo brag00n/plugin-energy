@@ -7,6 +7,7 @@
  *
  *   days     {YYYY-MM-DD: highest normal rate of the day}   one value per day over the window (rule R2)
  *   active   number of cycles with a non zero rate           guard of rule R4
+ *   seed     [rate, ...]                                     rates learned while the profile is built, kept for rule R12
  *   abnormal [[timestamp, rate], ...]                        abnormal cycles of the last hours (rules R8, R9)
  *
  * To forget everything learned about an equipment: remove its "jumpProfile" configuration (see forget()).
@@ -18,7 +19,7 @@ class energyAnomalyProfile {
 
 	/** Empty profile. */
 	public static function blank() {
-		return array('days' => array(), 'active' => 0, 'abnormal' => array());
+		return array('days' => array(), 'active' => 0, 'abnormal' => array(), 'seed' => array());
 	}
 
 	public static function load($_energy) {
@@ -35,6 +36,13 @@ class energyAnomalyProfile {
 			foreach ($data['abnormal'] as $entry) {
 				if (is_array($entry) && count($entry) == 2 && is_numeric($entry[0]) && is_numeric($entry[1]) && $entry[0] > 0 && $entry[1] > 0) {
 					$profile['abnormal'][] = array(intval($entry[0]), floatval($entry[1]));
+				}
+			}
+		}
+		if (isset($data['seed']) && is_array($data['seed'])) {
+			foreach ($data['seed'] as $rate) {
+				if (is_numeric($rate) && $rate > 0) {
+					$profile['seed'][] = floatval($rate);
 				}
 			}
 		}

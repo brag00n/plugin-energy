@@ -24,6 +24,7 @@
  *  R9   Change of regime                      registerAbnormal()        RegimeCount (3), RegimeHours (6)
  *  R10  A cron that ran late                  cronIsLate()              (energy::integrationMaxGap())
  *  R11  Probable cause of a jump              probableCause()           -
+ *  R12  Outliers dropped at establishment    trimOutliers()            OutlierFactor (20)
  *
  * A parameter can be tuned in the configuration of the plugin: "energyJump<Parameter>" for every energy
  * (e.g. energyJumpMargin) or "energyJump<Energy><Parameter>" for one energy only (e.g. energyJumpWaterMargin).
@@ -49,6 +50,9 @@ class energyAnomalyRules {
 
 	/** R9 - Length, in hours, of the period in which REGIME_COUNT abnormal cycles make a change of regime. */
 	const REGIME_HOURS = 6;
+
+	/** R12 - A rate learned while the profile was built is dropped above this multiple of the median of those rates. */
+	const OUTLIER_FACTOR = 20;
 
 	/**
 	 * Value of a tuning parameter for an energy (see the order of precedence in the header of this file).
@@ -134,10 +138,60 @@ class energyAnomalyRules {
 			return $_profile;
 		}
 		$_rate = self::cappedRate($_profile, $_rate, $_kind);
+		// While the profile is being built, every rate is also kept on its own (the "seed"): the first cycle has no
+		// reference to be compared with, so a wrong one can only be recognised later, once the others are known (R12).
+		if ($_profile['active'] < intval(self::param($_kind, 'MinActive', self::MIN_ACTIVE))) {
+			$seed = (isset($_profile['seed']) && is_array($_profile['seed'])) ? $_profile['seed'] : array();
+			$seed[] = round($_rate, 3);
+			$_profile['seed'] = $seed;
+		}
 		$day = date('Y-m-d', $_now);
 		$_profile['days'][$day] = max(isset($_profile['days'][$day]) ? $_profile['days'][$day] : 0, round($_rate, 3));
 		$_profile['active']++;
 		return self::forget($_profile, $_now, $_kind);
+	}
+
+	/**
+	 * R12 - OUTLIERS DROPPED AT ESTABLISHMENT.
+	 * Nothing is judged while the profile is built (R4), and the very first cycle has no reference (R6 does not apply
+	 * yet). A wrong value can therefore be learned: in production a cycle of 100 kWh in 15 minutes (400 000 W) was the
+	 * first cycle of an equipment whose normal rate is a few hundred W, and it became the reference for 30 days, which
+	 * would have blinded the detector.
+	 * The wrong value is recognised afterwards, when the profile reaches MinActive cycles: the rates learned meanwhile
+	 * give a median, and any day of the profile above OutlierFactor times that median is replaced by the highest rate
+	 * that is not above it. The caller reports what was dropped: it is a jump that could not be judged in time.
+	 * The median, not the average: one huge value would drag an average along with it.
+	 * Limit: a genuine load that is OutlierFactor times above its usual rate in the first cycles (an electric vehicle
+	 * charging on top of a standby) loses that peak and is flagged the first time it comes back, then accepted by R9.
+	 *
+	 * @return array {0: the profile, 1: the dropped days {YYYY-MM-DD: rate}, 2: the ceiling, 3: the median}
+	 */
+	public static function trimOutliers($_profile, $_kind) {
+		$seed = (isset($_profile['seed']) && is_array($_profile['seed'])) ? array_values($_profile['seed']) : array();
+		if (count($seed) == 0 || $_profile['active'] < intval(self::param($_kind, 'MinActive', self::MIN_ACTIVE))) {
+			return array($_profile, array(), 0, 0);
+		}
+		sort($seed);
+		$count = count($seed);
+		$median = ($count % 2 == 1) ? $seed[intdiv($count, 2)] : ($seed[$count / 2 - 1] + $seed[$count / 2]) / 2;
+		$ceiling = $median * self::param($_kind, 'OutlierFactor', self::OUTLIER_FACTOR);
+		$kept = array();
+		foreach ($seed as $rate) {
+			if ($rate <= $ceiling) {
+				$kept[] = $rate;
+			}
+		}
+		$robustMax = count($kept) > 0 ? max($kept) : $median;
+		$dropped = array();
+		foreach ($_profile['days'] as $day => $rate) {
+			if ($rate > $ceiling) {
+				$dropped[$day] = $rate;
+				$_profile['days'][$day] = $robustMax;
+			}
+		}
+		// The seed has done its job: the profile is established and only keeps one value per day from now on
+		$_profile['seed'] = array();
+		return array($_profile, $dropped, $ceiling, $median);
 	}
 
 	/**
