@@ -167,4 +167,25 @@ final class EnergyCostDetailTest extends EnergyTestCase {
 		$this->assertEqualsWithDelta(0.3, $detail['hp'][0][1], 0.0001);
 		$this->assertCount(1, $detail['unknown'], 'the counter day is fully explained by its HP index');
 	}
+
+	public function testTheDaysGivenByTheCounterAreListedAsMeasured(): void {
+		$this->setConfig('rateMode', 'fixed');
+		$this->setConfig('rate', '0.2');
+		$counter = $this->build(array(
+			new GraphCmdDouble('consumptionTotal', array(array('2026-11-04', '1.5'))),
+			new GraphCmdDouble('cost', array(array('2026-11-04', '0.3'))),
+		), $this->lines(), array('totalCounter' => 1));
+		$heater = $this->build(array(
+			new GraphCmdDouble('consumptionTotal', array(array('2026-11-03', '50'))),
+		), array(array('category' => 'heating', 'power' => '#5#', 'consumption' => '')));
+		$result = $this->graph($counter, $heater);
+		$this->assertEquals(array($this->ms('2026-11-04')), $result['measuredDays']);
+	}
+
+	public function testWithoutACounterNoDayIsMeasured(): void {
+		$heater = $this->build(array(
+			new GraphCmdDouble('consumptionTotal', array(array('2026-11-03', '50'))),
+		), array(array('category' => 'heating', 'power' => '#5#', 'consumption' => '')));
+		$this->assertSame(array(), $this->graph($heater)['measuredDays']);
+	}
 }

@@ -186,11 +186,10 @@ function getDatas(_object_id, _dateStart, _dateEnd) {
         drawSimpleGraph('div_graphPower',series);
 
         var series = []
-        if(isset( data.result.datas.totalConsumption)){
-           series.push({
+        if(isset(data.result.datas.totalConsumption)){
+           totalConsumptionSeries(data.result.datas, {
             step: true,
             name: '{{Consommation totale}} (kWh)',
-            data:  data.result.datas.totalConsumption,
             type: 'areaspline',
             stack : 2,
             dataGrouping: {
@@ -203,7 +202,7 @@ function getDatas(_object_id, _dateStart, _dateEnd) {
             tooltip: {
                 valueDecimals: 2
             },
-        });
+        }).forEach(function (totalSerie) { series.push(totalSerie); });
        }
        for(var i in data.result.datas.category){
         if($.isArray(data.result.datas.category[i]) && data.result.datas.category[i].length > 0){
@@ -231,12 +230,11 @@ function getDatas(_object_id, _dateStart, _dateEnd) {
 
     var series = []
     if(isset(data.result.datas.totalConsumption)){
-       series.push({
-        step: true,
-        name: '{{Consommation totale}} (kWh)',
-        data:  data.result.datas.totalConsumption,
-        type: 'areaspline',
-        stack : 2,
+           totalConsumptionSeries(data.result.datas, {
+            step: true,
+            name: '{{Consommation totale}} (kWh)',
+            type: 'areaspline',
+            stack : 2,
         stacking : 'normal',
         dataGrouping: {
             approximation: "sum",
@@ -247,8 +245,8 @@ function getDatas(_object_id, _dateStart, _dateEnd) {
         tooltip: {
             valueDecimals: 2
         },
-    });
-   }
+    }).forEach(function (totalSerie) { series.push(totalSerie); });
+       }
    for(var i in data.result.datas.object){
     if($.isArray(data.result.datas.object[i]) && data.result.datas.object[i].length > 0){
         series.push({
@@ -274,6 +272,41 @@ drawSimpleGraph('div_graphDetailConsumptionByObject',series);
 
 }
 });
+}
+
+// The total consumption is one series, but its days do not all have the same origin: the days given by the total
+// counter (Linky) are measured, the others are estimates (sum of the equipments). When the plugin tells which days are
+// measured, the estimated stretches are drawn in grey (colour zones on the x axis) and the tooltip names the origin.
+function totalConsumptionSeries(_datas, _base) {
+    var measured = _datas.measuredDays || [];
+    if (measured.length == 0) {
+        return [$.extend({}, _base, {data: _datas.totalConsumption})];
+    }
+    var zones = [], previous = null, run = null;
+    _datas.totalConsumption.forEach(function (point) {
+        var isMeasured = measured.indexOf(point[0]) != -1;
+        if (run === null || isMeasured != run) {
+            if (run !== null) {
+                zones.push({value: point[0], color: run ? '#3498db' : '#95a5a6'});
+            }
+            run = isMeasured;
+        }
+    });
+    if (run !== null) {
+        zones.push({color: run ? '#3498db' : '#95a5a6'});
+    }
+    return [$.extend({}, _base, {
+        data: _datas.totalConsumption,
+        zoneAxis: 'x',
+        zones: zones,
+        tooltip: {
+            valueDecimals: 2,
+            pointFormatter: function () {
+                var origin = measured.indexOf(this.x) != -1 ? '{{mesurée par le compteur}}' : '{{estimée (somme des équipements)}}';
+                return '<span style="color:' + this.color + '">●</span> ' + this.series.name + ': <b>' + Highcharts.numberFormat(this.y, 2) + '</b> (' + origin + ')<br/>';
+            }
+        }
+    })];
 }
 
 function drawSimpleGraph(_el, _serie) {

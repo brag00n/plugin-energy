@@ -424,6 +424,7 @@ class energy extends eqLogic {
 			'cost' => array(),
 			'costDetail' => array('hp' => array(), 'hc' => array(), 'unknown' => array()),
 			'totalConsumption' => array(),
+			'measuredDays' => array(),
 			'translation' => array('other' => __('Autre', __FILE__), 'light' => __('Lumière', __FILE__), 'multimedia' => __('Multimedia', __FILE__), 'heating' => __('Chauffage', __FILE__), 'electrical' => __('Electroménager', __FILE__), 'automatism' => __('Automatisme', __FILE__)),
 			'object' => array(),
 			'total' => array('power' => 0, 'consumption' => 0, 'cost' => 0),
@@ -612,6 +613,8 @@ class energy extends eqLogic {
 				// A day it did not record (before it was installed or emptied) keeps the sum of the equipments, otherwise
 				// the curve would show a few kWh of the counter next to days of estimates.
 				if (count($counterConsumption) > 0) {
+					// days given by the counter (measured), the other days of the curve are estimates; the panel tells them apart
+					$return['measuredDays'] = array_keys($counterConsumption);
 					$total = $counterConsumptionSum;
 					foreach ($return['totalConsumption'] as $day => $point) {
 						if (!isset($counterConsumption[$day])) {
