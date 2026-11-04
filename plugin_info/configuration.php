@@ -90,6 +90,12 @@ if (!isConnect()) {
             </select>
         </div>
     </div>
+    <div class="form-group">
+        <label class="col-sm-2 control-label">{{Abonnement par jour}}</label>
+        <div class="col-sm-2">
+            <input class="form-control configKey input-sm" data-l1key="subscriptionDaily" placeholder="0"/>
+        </div>
+    </div>
     <div class="rate fixed">
         <div class="form-group">
             <label class="col-sm-2 control-label">{{Tarif}}</label>

@@ -140,7 +140,7 @@ final class EnergyCostDetailTest extends EnergyTestCase {
 
 	public function testNothingRecordedGivesThreeEmptySeries(): void {
 		$result = $this->graph();
-		$this->assertSame(array('hp' => array(), 'hc' => array(), 'unknown' => array()), $result['costDetail']);
+		$this->assertSame(array('hp' => array(), 'hc' => array(), 'unknown' => array(), 'subscription' => array()), $result['costDetail']);
 	}
 
 	public function testADayTheCounterDidNotRecordKeepsTheSumOfTheEquipments(): void {
@@ -187,5 +187,41 @@ final class EnergyCostDetailTest extends EnergyTestCase {
 			new GraphCmdDouble('consumptionTotal', array(array('2026-11-03', '50'))),
 		), array(array('category' => 'heating', 'power' => '#5#', 'consumption' => '')));
 		$this->assertSame(array(), $this->graph($heater)['measuredDays']);
+	}
+
+	public function testTheDailySubscriptionIsAddedToEachDayUpToToday(): void {
+		$this->setConfig('rateMode', 'fixed');
+		$this->setConfig('rate', '0.2');
+		$this->setConfig('subscriptionDaily', '0,66');
+		energy::$nowOverride = strtotime('2026-11-04 12:00:00');
+		$meter = $this->build(array(
+			new GraphCmdDouble('cost', array(array('2026-11-03', '2'))),
+		), $this->lines());
+		$object = new jeeObject(1, 'home');
+		$object->eqLogics[] = $meter;
+		$result = energy::getGraph('2026-11-02 00:00:00', '2026-11-10', 1);
+		$this->assertCount(3, $result['costDetail']['subscription'], '2, 3 and 4 November: the days to come are not due');
+		$this->assertEqualsWithDelta(2.66, $result['cost'][1][1], 0.0001, '2 + 0.66 on the day that had a cost');
+		$this->assertEqualsWithDelta(0.66, $result['cost'][0][1], 0.0001, 'a day without cost still has its subscription');
+		$this->assertSame(round(2 + 3 * 0.66, 2), $result['total']['cost']);
+	}
+
+	public function testWithoutSubscriptionNothingChanges(): void {
+		$this->setConfig('rateMode', 'fixed');
+		$this->setConfig('rate', '0.2');
+		$meter = $this->build(array(
+			new GraphCmdDouble('cost', array(array('2026-11-03', '2'))),
+		), $this->lines());
+		$result = $this->graph($meter);
+		$this->assertSame(array(), $result['costDetail']['subscription']);
+		$this->assertSame(2.0, $result['total']['cost']);
+	}
+
+	public function testTheSubscriptionIsOnlyForElectricity(): void {
+		$this->setConfig('subscriptionDaily', '0.66');
+		energy::$nowOverride = strtotime('2026-11-04 12:00:00');
+		$object = new jeeObject(1, 'home');
+		$result = energy::getGraph('2026-11-02 00:00:00', '2026-11-04', 1, 'water');
+		$this->assertSame(0.0, $result['total']['cost']);
 	}
 }

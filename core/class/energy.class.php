@@ -397,7 +397,7 @@ class energy extends eqLogic {
 	 * @return array {hp: [[ms, amount]], hc: [...], unknown: [...]} each series sorted by day, empty days left out
 	 */
 	private static function buildCostDetail($_cost, $_split) {
-		$detail = array('hp' => array(), 'hc' => array(), 'unknown' => array());
+		$detail = array('hp' => array(), 'hc' => array(), 'unknown' => array(), 'subscription' => array());
 		foreach ($_cost as $point) {
 			$day = $point[0];
 			$hp = isset($_split['hp'][$day]) ? $_split['hp'][$day] : 0;
@@ -418,11 +418,44 @@ class energy extends eqLogic {
 		return $detail;
 	}
 
+	/**
+	 * Daily subscription: the fixed part of the bill, the same every day whatever is consumed.
+	 * Setting "subscriptionDaily" (amount per day, in the currency of the plugin; 0 or empty = none). It is added for
+	 * every day of the period shown up to today (a day to come is not due yet), to the cost curve, to the total cost
+	 * and to the detail of the bars as a fourth part, so that HP + HC + unknown + subscription = the bar.
+	 */
+	private static function addSubscription(&$_return, $_startTime, $_endTime) {
+		$daily = floatval(str_replace(',', '.', config::byKey('subscriptionDaily', 'energy', 0)));
+		if ($daily <= 0) {
+			return;
+		}
+		$today = strtotime(date('Y-m-d', (self::$nowOverride !== null) ? self::$nowOverride : time()));
+		$last = min(strtotime(date('Y-m-d', strtotime($_endTime))), $today);
+		$position = array();
+		foreach ($_return['cost'] as $index => $point) {
+			$position[strval($point[0])] = $index;
+		}
+		$guard = 0;
+		for ($day = strtotime(date('Y-m-d', strtotime($_startTime))); $day <= $last && $guard < 3700; $day = strtotime('+1 day', $day), $guard++) {
+			$ms = floatval(strtotime(date('Y-m-d', $day) . ' UTC')) * 1000;
+			if (isset($position[strval($ms)])) {
+				$_return['cost'][$position[strval($ms)]][1] += $daily;
+			} else {
+				$_return['cost'][] = array($ms, $daily);
+			}
+			$_return['costDetail']['subscription'][] = array($ms, $daily);
+			$_return['total']['cost'] += $daily;
+		}
+		sort($_return['cost']);
+		$_return['cost'] = array_values($_return['cost']);
+		$_return['total']['cost'] = round($_return['total']['cost'], 2);
+	}
+
 	public static function getGraph($_startTime, $_endTime, $_object_id, $_energyType = 'electricity') {
 		$return = array(
 			'category' => array('other' => array(), 'light' => array(), 'multimedia' => array(), 'heating' => array(), 'electrical' => array(), 'automatism' => array()),
 			'cost' => array(),
-			'costDetail' => array('hp' => array(), 'hc' => array(), 'unknown' => array()),
+			'costDetail' => array('hp' => array(), 'hc' => array(), 'unknown' => array(), 'subscription' => array()),
 			'totalConsumption' => array(),
 			'measuredDays' => array(),
 			'translation' => array('other' => __('Autre', __FILE__), 'light' => __('Lumière', __FILE__), 'multimedia' => __('Multimedia', __FILE__), 'heating' => __('Chauffage', __FILE__), 'electrical' => __('Electroménager', __FILE__), 'automatism' => __('Automatisme', __FILE__)),
@@ -662,6 +695,9 @@ class energy extends eqLogic {
 			$return['cost'] = array_values($return['cost']);
 		}
 		$return['costDetail'] = self::buildCostDetail($return['cost'], $costSplit);
+		if ($_energyType == 'electricity') {
+			self::addSubscription($return, $_startTime, $_endTime);
+		}
 		foreach ($return['power'] as &$value) {
 			sort($value);
 			$value = array_values($value);

@@ -100,7 +100,8 @@ function getDatas(_object_id, _dateStart, _dateEnd) {
             var costParts = [
                 ['hp', '{{Coût HP}}', '#e74c3c'],
                 ['hc', '{{Coût HC}}', '#3498db'],
-                ['unknown', '{{Coût inconnu (sans info HP/HC)}}', '#95a5a6']
+                ['unknown', '{{Coût inconnu (sans info HP/HC)}}', '#95a5a6'],
+                ['subscription', '{{Abonnement}}', '#f39c12']
             ];
             var hasDetail = false;
             costParts.forEach(function (part) {
@@ -139,7 +140,7 @@ function getDatas(_object_id, _dateStart, _dateEnd) {
             if (hasDetail) series.push({
                 name: '{{Coût total}} ('+data.result.currency+')',
                 data: data.result.datas.cost,
-                type: 'line',
+                type: 'scatter',
                 color: '#2c3e50',
                 lineWidth: 0,
                 marker: {enabled: false},
@@ -340,12 +341,19 @@ function totalConsumptionSeries(_datas, _base) {
     if (measured.length == 0) {
         return [$.extend({}, _base, {data: _datas.totalConsumption})];
     }
-    var zones = [], previous = null, run = null;
+    // x of a grouped point can differ from the day sent by the server by the time zone offset: compare to the nearest day
+    var isMeasuredDay = function (_x) {
+        return measured.some(function (_day) {
+            return Math.abs(_day - _x) < 12 * 3600 * 1000;
+        });
+    };
+    var zones = [], run = null;
     _datas.totalConsumption.forEach(function (point) {
-        var isMeasured = measured.indexOf(point[0]) != -1;
+        var isMeasured = isMeasuredDay(point[0]);
         if (run === null || isMeasured != run) {
             if (run !== null) {
-                zones.push({value: point[0], color: run ? '#3498db' : '#95a5a6'});
+                // the points are grouped by day in local time: a boundary half a day earlier survives that shift
+                zones.push({value: point[0] - 12 * 3600 * 1000, color: run ? '#3498db' : '#95a5a6'});
             }
             run = isMeasured;
         }
@@ -360,7 +368,7 @@ function totalConsumptionSeries(_datas, _base) {
         tooltip: {
             valueDecimals: 2,
             pointFormatter: function () {
-                var origin = measured.indexOf(this.x) != -1 ? '{{mesurée par le compteur}}' : '{{estimée (somme des équipements)}}';
+                var origin = isMeasuredDay(this.x) ? '{{mesurée par le compteur}}' : '{{estimée (somme des équipements)}}';
                 return '<span style="color:' + this.color + '">●</span> ' + this.series.name + ': <b>' + Highcharts.numberFormat(this.y, 2) + '</b> (' + origin + ')<br/>';
             }
         }
