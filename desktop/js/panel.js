@@ -95,23 +95,39 @@ function getDatas(_object_id, _dateStart, _dateEnd) {
             $('#div_energy').setValues(data.result, '.energyAttr');
 
             var series = []
-            series.push({
-                step: true,
-                name: '{{Coût}} ('+data.result.currency+')',
-                data:  data.result.datas.cost,
-                type: 'column',
-                stack : 1,
-                unite : data.result.currency,
-                stacking : 'normal',
-                dataGrouping: {
-                    approximation: "sum",
-                    enabled: true,
-                    forced: true,
-                    units: [[groupBy,[1]]]
-                },
-                tooltip: {
-                    valueDecimals: 2
-                },
+            // The cost is split into peak hours, off-peak hours and unknown (no HP/HC information) when the plugin knows it
+            var costDetail = data.result.datas.costDetail || {};
+            var costParts = [
+                ['hp', '{{Coût HP}}', '#e74c3c'],
+                ['hc', '{{Coût HC}}', '#3498db'],
+                ['unknown', '{{Coût inconnu (sans info HP/HC)}}', '#95a5a6']
+            ];
+            var hasDetail = false;
+            costParts.forEach(function (part) {
+                if (costDetail[part[0]] && costDetail[part[0]].length > 0) {
+                    hasDetail = true;
+                }
+            });
+            (hasDetail ? costParts : [['cost', '{{Coût}}', null]]).forEach(function (part) {
+                series.push({
+                    step: true,
+                    name: part[1] + ' ('+data.result.currency+')',
+                    data: hasDetail ? (costDetail[part[0]] || []) : data.result.datas.cost,
+                    color: part[2] || undefined,
+                    type: 'column',
+                    stack : 1,
+                    unite : data.result.currency,
+                    stacking : 'normal',
+                    dataGrouping: {
+                        approximation: "sum",
+                        enabled: true,
+                        forced: true,
+                        units: [[groupBy,[1]]]
+                    },
+                    tooltip: {
+                        valueDecimals: 2
+                    },
+                });
             });
             drawSimpleGraph('div_graphCost',series);
             

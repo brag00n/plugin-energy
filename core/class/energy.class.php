@@ -377,10 +377,52 @@ class energy extends eqLogic {
 		}
 	}
 
+	/** Adds the HP and HC costs of one equipment (see getCostSplit()) to the running split, by day. */
+	private static function addCostSplit(&$_split, $_equipmentSplit) {
+		foreach (array('hp', 'hc') as $part) {
+			foreach ($_equipmentSplit[$part] as $day => $amount) {
+				$_split[$part][$day] = (isset($_split[$part][$day]) ? $_split[$part][$day] : 0) + $amount;
+			}
+		}
+	}
+
+	/**
+	 * Cost of each day split into peak hours (HP), off-peak hours (HC) and unknown.
+	 * The cost is stored as one amount per cycle, without its tariff. The HP and HC parts are rebuilt from the energy
+	 * credited on the Hp and Hc commands times the tariff of the plugin; what is left of the cost of the day is
+	 * unknown (no HP/HC information: a fixed tariff, or an equipment without indexes). Never negative.
+	 *
+	 * @param array $_cost the cost curve, [[ms, amount], ...]
+	 * @param array $_split {hp: {ms: amount}, hc: {ms: amount}}
+	 * @return array {hp: [[ms, amount]], hc: [...], unknown: [...]} each series sorted by day, empty days left out
+	 */
+	private static function buildCostDetail($_cost, $_split) {
+		$detail = array('hp' => array(), 'hc' => array(), 'unknown' => array());
+		foreach ($_cost as $point) {
+			$day = $point[0];
+			$hp = isset($_split['hp'][$day]) ? $_split['hp'][$day] : 0;
+			$hc = isset($_split['hc'][$day]) ? $_split['hc'][$day] : 0;
+			// a split larger than the cost (rounding, a tariff changed since) must not make the bar larger than the day
+			if ($hp + $hc > $point[1]) {
+				$scale = $point[1] > 0 ? $point[1] / ($hp + $hc) : 0;
+				$hp *= $scale;
+				$hc *= $scale;
+			}
+			$unknown = max(0, $point[1] - $hp - $hc);
+			foreach (array('hp' => $hp, 'hc' => $hc, 'unknown' => $unknown) as $part => $amount) {
+				if ($amount > 0.0000001) {
+					$detail[$part][] = array($day, $amount);
+				}
+			}
+		}
+		return $detail;
+	}
+
 	public static function getGraph($_startTime, $_endTime, $_object_id, $_energyType = 'electricity') {
 		$return = array(
 			'category' => array('other' => array(), 'light' => array(), 'multimedia' => array(), 'heating' => array(), 'electrical' => array(), 'automatism' => array()),
 			'cost' => array(),
+			'costDetail' => array('hp' => array(), 'hc' => array(), 'unknown' => array()),
 			'totalConsumption' => array(),
 			'translation' => array('other' => __('Autre', __FILE__), 'light' => __('Lumière', __FILE__), 'multimedia' => __('Multimedia', __FILE__), 'heating' => __('Chauffage', __FILE__), 'electrical' => __('Electroménager', __FILE__), 'automatism' => __('Automatisme', __FILE__)),
 			'object' => array(),
@@ -405,6 +447,7 @@ class energy extends eqLogic {
 		$objects[] = $object;
 		self::perfStop($perfStep, 'objects tree', 'object tree (' . count($objects) . ' objects)');
 
+		$costSplit = array('hp' => array(), 'hc' => array());
 		foreach ($objects as $object) {
 			$return['object'][$object->getName()] = array();
 			$return['power'][$object->getName()] = array();
@@ -473,6 +516,7 @@ class energy extends eqLogic {
 				if ($energy->getConfiguration('totalCounter') == 1) {
 					continue;
 				}
+				self::addCostSplit($costSplit, $energy->getCostSplit($_startTime, $_endTime));
 				foreach ($energyData as $key => $values) {
 					if ($key == 'consumptionTotal') {
 						continue;
@@ -572,6 +616,9 @@ class energy extends eqLogic {
 				if (count($counterCost) > 0) {
 					$return['cost'] = $counterCost;
 					$return['total']['cost'] = $counterCostSum;
+					// the split must describe the same cost as the curve: the one of the counter
+					$costSplit = array('hp' => array(), 'hc' => array());
+					self::addCostSplit($costSplit, $energy->getCostSplit($_startTime, $_endTime));
 				}
 				break;
 			}
@@ -586,6 +633,7 @@ class energy extends eqLogic {
 			sort($return['cost']);
 			$return['cost'] = array_values($return['cost']);
 		}
+		$return['costDetail'] = self::buildCostDetail($return['cost'], $costSplit);
 		foreach ($return['power'] as &$value) {
 			sort($value);
 			$value = array_values($value);
@@ -651,6 +699,43 @@ class energy extends eqLogic {
 			$return['cost'] = $cmd->getHistoryEnergy($_startTime, $_endTime);
 		}
 		return $return;
+	}
+
+	/**
+	 * Cost of the energy credited on the HP and HC commands, by day (key = ms like getGraph), with the tariff of the plugin.
+	 * Variable tariff: rateHp / rateHc. Fixed tariff: the single rate for both. Empty when the equipment has no HP/HC
+	 * line, which spares two queries.
+	 *
+	 * @return array {hp: {ms: amount}, hc: {ms: amount}}
+	 */
+	public function getCostSplit($_startTime = null, $_endTime = null) {
+		$split = array('hp' => array(), 'hc' => array());
+		$variable = (config::byKey('rateMode', 'energy') == 'variable');
+		$hasRateLine = false;
+		foreach ((array) $this->getConfiguration('confEnergy') as $confEnergy) {
+			if (isset($confEnergy['category']) && ($confEnergy['category'] == 'hp' || $confEnergy['category'] == 'hc')) {
+				$hasRateLine = true;
+			}
+		}
+		if (!$hasRateLine) {
+			return $split;
+		}
+		foreach (array('hp' => array('consumptionHp', 'rateHp'), 'hc' => array('consumptionHc', 'rateHc')) as $part => $names) {
+			$cmd = $this->getCmd(null, $names[0]);
+			if (!is_object($cmd)) {
+				continue;
+			}
+			// fixed tariff: the same rate for both parts, evaluated like cron15 does
+			$rate = $variable ? floatval(str_replace(',', '.', config::byKey($names[1], 'energy', 0))) : floatval(jeedom::evaluateExpression(str_replace(',', '.', config::byKey('rate', 'energy', 0))));
+			foreach ((array) $cmd->getHistoryEnergy($_startTime, $_endTime) as $value) {
+				if (!is_numeric($value[1]) || $value[1] == 0) {
+					continue;
+				}
+				$day = floatval(strtotime($value[0] . " UTC")) * 1000;
+				$split[$part][$day] = (isset($split[$part][$day]) ? $split[$part][$day] : 0) + floatval($value[1]) * $rate;
+			}
+		}
+		return $split;
 	}
 
 	public function emptyHistory() {
