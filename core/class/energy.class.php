@@ -169,6 +169,24 @@ class energy extends eqLogic {
 		log::add('energy', 'debug', '[perf] ' . $_label . ' done in ' . round((microtime(true) - $_start) * 1000) . ' ms');
 	}
 
+	/**
+	 * Replaces the marker #elapsed# of an expression of power by the number of minutes since the previous cycle of the
+	 * line (see integrationElapsed(): capped like the integration, nominal 15 minutes when unknown, never 0).
+	 * It lets an expression measure what happened over the REAL interval instead of a fixed one, e.g. the average power
+	 * of a relay: durationbetween(#state#, 1, -#elapsed# minutes, now) / #elapsed# * 2000. Without the marker the
+	 * expression is unchanged. Do not put quotes around the bounds of durationbetween: they would stay in the text.
+	 *
+	 * @param string $_expression the expression of power of the line
+	 * @param int $_seconds credited seconds, from integrationElapsed()
+	 */
+	public static function replaceElapsed($_expression, $_seconds) {
+		if (strpos($_expression, '#elapsed#') === false) {
+			return $_expression;
+		}
+		$minutes = ($_seconds > 0) ? round($_seconds / 60, 2) : self::CYCLE_NOMINAL / 60;
+		return str_replace('#elapsed#', $minutes, $_expression);
+	}
+
 	/** Tolerance over the subscribed power: a breaker lets a load exceed it for a while (see maxCreditKwh()). */
 	const POWER_TOLERANCE = 1.5;
 
@@ -225,7 +243,11 @@ class energy extends eqLogic {
 				foreach ($energy->getConfiguration('confEnergy') as $confEnergy) {
 					$key = self::getConfEnergyKey($confEnergy, $position);
 					if ($confEnergy['power'] != '') {
-						$value = floatval(jeedom::evaluateExpression($confEnergy['power']));
+						// The same elapsed time is used to write the expression (#elapsed#) and to credit the energy
+						$nowtime = (self::$nowOverride !== null) ? self::$nowOverride : strtotime('now');
+						$lastChange = $energy->getConfiguration('lastChangeTime' . $key);
+						$elapsed = self::integrationElapsed($lastChange, $nowtime);
+						$value = floatval(jeedom::evaluateExpression(self::replaceElapsed($confEnergy['power'], $elapsed['seconds'])));
 						$power += $value;
 						if ($confEnergy['consumption'] == '') {
 							// Line with a power but no energy counter: the consumption is the integral of the power over time.
@@ -236,14 +258,11 @@ class energy extends eqLogic {
 							// Example seen in production: a 2000 W radiator last seen "on", cron15 silent for 25 h, so the first
 							// cycle credited 2000 W x 25 h = 50 kWh (and about 11 EUR) that nobody consumed.
 							// We cannot know what happened during the gap, so the credited time is capped (see integrationElapsed()).
-							$nowtime = (self::$nowOverride !== null) ? self::$nowOverride : strtotime('now');
-							$lastChange = $energy->getConfiguration('lastChangeTime' . $key);
 							$lastValue = $energy->getConfiguration('lastValue' . $key);
-							$elapsed = self::integrationElapsed($lastChange, $nowtime);
 							if ($elapsed['capped']) {
 								log::add('energy', 'warning', 'Power integration gap capped for ' . $energy->getHumanName() . ' (' . $key . ') : ' . $elapsed['gap'] . ' s since the last cycle, only ' . $elapsed['seconds'] . ' s counted at ' . $lastValue . ' W');
 							}
-							$lineKwh = (($lastValue * $elapsed['seconds']) / 3600) / 1000;
+							$lineKwh = ((floatval($lastValue) * $elapsed['seconds']) / 3600) / 1000;
 							$consumptions[$confEnergy['category']] += $lineKwh;
 							$anomalyLines[] = energyAnomaly::line($key, $confEnergy['category'], 'integrated power', $lineKwh, floatval($lastValue) . ' W over ' . $elapsed['seconds'] . ' s' . ($elapsed['capped'] ? ' (capped from ' . $elapsed['gap'] . ' s)' : ''));
 							$energy->setConfiguration('lastChangeTime' . $key, $nowtime);
