@@ -171,7 +171,8 @@ class energy extends eqLogic {
 
 	/**
 	 * Replaces the marker #elapsed# of an expression of power by the number of minutes since the previous cycle of the
-	 * line (see integrationElapsed(): capped like the integration, nominal 15 minutes when unknown, never 0).
+	 * line (see integrationElapsed(): capped like the integration, nominal 15 minutes when unknown, never 0), rounded
+	 * to WHOLE minutes (a decimal such as 15.07 makes strtotime() fail in durationbetween).
 	 * It lets an expression measure what happened over the REAL interval instead of a fixed one, e.g. the average power
 	 * of a relay: durationbetween(#state#, 1, -#elapsed# minutes, now) / #elapsed# * 2000. Without the marker the
 	 * expression is unchanged. Do not put quotes around the bounds of durationbetween: they would stay in the text.
@@ -183,7 +184,10 @@ class energy extends eqLogic {
 		if (strpos($_expression, '#elapsed#') === false) {
 			return $_expression;
 		}
-		$minutes = ($_seconds > 0) ? round($_seconds / 60, 2) : self::CYCLE_NOMINAL / 60;
+		// WHOLE minutes only: strtotime() does not understand "-15.07 minutes" (it returns a date of the day, so the
+		// window of durationbetween() becomes nonsense and the power reads 0). The cycles last 894 to 908 s, so a
+		// decimal would be the rule, not the exception. durationbetween() counts whole minutes anyway.
+		$minutes = ($_seconds > 0) ? max(1, intval(round($_seconds / 60))) : intval(self::CYCLE_NOMINAL / 60);
 		return str_replace('#elapsed#', $minutes, $_expression);
 	}
 

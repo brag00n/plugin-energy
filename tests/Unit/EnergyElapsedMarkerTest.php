@@ -14,7 +14,10 @@ final class EnergyElapsedMarkerTest extends EnergyTestCase {
 
 	public function testTheMarkerIsReplacedByTheMinutes(): void {
 		$this->assertSame('x 15 y 15', energy::replaceElapsed('x #elapsed# y #elapsed#', 900));
-		$this->assertSame('x 14.9', energy::replaceElapsed('x #elapsed#', 894));
+		$this->assertSame('x 15', energy::replaceElapsed('x #elapsed#', 894), 'whole minutes');
+		$this->assertSame('x 15', energy::replaceElapsed('x #elapsed#', 908));
+		$this->assertSame('x 2', energy::replaceElapsed('x #elapsed#', 100));
+		$this->assertSame('x 1', energy::replaceElapsed('x #elapsed#', 20), 'never 0');
 		$this->assertSame('x 30', energy::replaceElapsed('x #elapsed#', 1800));
 	}
 
@@ -93,5 +96,18 @@ final class EnergyElapsedMarkerTest extends EnergyTestCase {
 		energy::cron15();
 		// no 3 hour credit and no refused expression: 1000 W read after the gap x 15 min = 0.25 kWh
 		$this->assertEqualsWithDelta(0.25, $this->cmdValue($energy, 'consumptionTotal'), 0.0001);
+	}
+
+	public function testTheBoundIsAlwaysUnderstoodByStrtotime(): void {
+		// The real cycles last 894 to 908 s: whatever the duration, "-N minutes" must be a date strtotime can read
+		$now = mktime(12, 0, 0, 11, 5, 2026);
+		for ($seconds = 840; $seconds <= 1800; $seconds += 7) {
+			$text = energy::replaceElapsed('-#elapsed# minutes', $seconds);
+			$this->assertDoesNotMatchRegularExpression('/\./', $text, $seconds . ' s');
+			$date = strtotime($text, $now);
+			$this->assertNotFalse($date);
+			$this->assertLessThan($now, $date, $text . ' must be in the past');
+			$this->assertGreaterThanOrEqual($now - 1800 - 30, $date);
+		}
 	}
 }
