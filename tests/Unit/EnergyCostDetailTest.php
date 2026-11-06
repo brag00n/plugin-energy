@@ -271,4 +271,17 @@ final class EnergyCostDetailTest extends EnergyTestCase {
 		$result = $this->graph($a, $b);
 		$this->assertSame(1917, $result['total']['power']);
 	}
+
+	public function testTheMeasuredDaysAreTheDatesOfThePointsAndTheCurvesAreSortedByDate(): void {
+		$this->setConfig('rateMode', 'fixed');
+		$this->setConfig('rate', '0.2');
+		$counter = $this->build(array(
+			new GraphCmdDouble('consumptionTotal', array(array('2026-11-05', '40'), array('2026-11-04', '1.5'))),
+			new GraphCmdDouble('cost', array(array('2026-11-04', '0.3'))),
+		), $this->lines(), array('totalCounter' => 1));
+		$result = $this->graph($counter);
+		$expected = array($this->ms('2026-11-04'), $this->ms('2026-11-05'));
+		$this->assertEquals($expected, $result['measuredDays'], 'the values, never a truncated key');
+		$this->assertEquals($expected, array_column($result['measuredConsumption'], 0), 'sorted by date');
+	}
 }

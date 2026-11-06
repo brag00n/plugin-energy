@@ -518,6 +518,15 @@ class energy extends eqLogic {
 		$_return['total']['cost'] = round($_return['total']['cost'], 2);
 	}
 
+	/** Points [[ms, value], ...] in the order of their date (the keys of the array are not reliable, see getGraph()). */
+	private static function sortByDate($_points) {
+		$points = array_values($_points);
+		usort($points, function ($a, $b) {
+			return $a[0] <=> $b[0];
+		});
+		return $points;
+	}
+
 	public static function getGraph($_startTime, $_endTime, $_object_id, $_energyType = 'electricity') {
 		$return = array(
 			'category' => array('other' => array(), 'light' => array(), 'multimedia' => array(), 'heating' => array(), 'electrical' => array(), 'automatism' => array()),
@@ -729,7 +738,10 @@ class energy extends eqLogic {
 				$return['measuredConsumption'] = $counterConsumption;
 				if (count($counterConsumption) > 0) {
 					// days given by the counter (measured), the other days of the curve are estimates; the panel tells them apart
-					$return['measuredDays'] = array_keys($counterConsumption);
+					// the days come from the points, not from the array keys: on a 32 bit PHP a key in milliseconds wraps around
+					$measuredDays = array_column($counterConsumption, 0);
+					sort($measuredDays);
+					$return['measuredDays'] = $measuredDays;
 					$total = $counterConsumptionSum;
 					foreach ($return['totalConsumption'] as $day => $point) {
 						if (!isset($counterConsumption[$day])) {
@@ -768,16 +780,15 @@ class energy extends eqLogic {
 		}
 		if (isset($return['totalConsumption'])) {
 			// Built equipment after equipment, so a day recorded only by a later equipment would come out of order
-			ksort($return['totalConsumption']);
-			$return['totalConsumption'] = array_values($return['totalConsumption']);
+			// sorted by the date of the point, not by the array key (a millisecond key wraps on a 32 bit PHP, every 49.7 days)
+			$return['totalConsumption'] = self::sortByDate($return['totalConsumption']);
 		}
 		// Without a total counter, the estimate is the only total: it is the same curve as totalConsumption
 		if (count($return['estimatedConsumption']) == 0 && count($return['measuredConsumption']) == 0) {
 			$return['estimatedConsumption'] = $estimatedTotals;
 		}
 		foreach (array('estimatedConsumption', 'measuredConsumption') as $curve) {
-			ksort($return[$curve]);
-			$return[$curve] = array_values($return[$curve]);
+			$return[$curve] = self::sortByDate($return[$curve]);
 		}
 
 		if (isset($return['cost'])) {
