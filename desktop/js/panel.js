@@ -197,7 +197,7 @@ function getDatas(_object_id, _dateStart, _dateEnd) {
                 var series = []
                 if(isset(data.result.datas.totalConsumption)){
                    series.push({
-                    name: '{{Consommation total}} ('+data.result.datas.consumptionUnite+')',
+                    name: '{{Total}} ('+data.result.datas.consumptionUnite+')',
                     data:  data.result.datas.totalConsumption,
                     type: 'column',
                     stack : 1,
@@ -250,7 +250,7 @@ function getDatas(_object_id, _dateStart, _dateEnd) {
         if(isset(data.result.datas.totalConsumption)){
            totalConsumptionSeries(data.result.datas, {
             step: true,
-            name: '{{Consommation totale}} (kWh)',
+            name: '{{Total}} (kWh)',
             type: 'areaspline',
             stack : 2,
             dataGrouping: {
@@ -293,7 +293,7 @@ function getDatas(_object_id, _dateStart, _dateEnd) {
     if(isset(data.result.datas.totalConsumption)){
            totalConsumptionSeries(data.result.datas, {
             step: true,
-            name: '{{Consommation totale}} (kWh)',
+            name: '{{Total}} (kWh)',
             type: 'areaspline',
             stack : 2,
         stacking : 'normal',
@@ -344,7 +344,7 @@ function totalConsumptionSeries(_datas, _base) {
     var out = [];
     if (estimated.length > 0) {
         out.push($.extend({}, _base, {
-            name: '{{Consommation totale estimée}} (kWh)',
+            name: '{{Total estimé}} (kWh)',
             data: estimated,
             color: '#95a5a6',
             fillOpacity: 0.25
@@ -352,7 +352,7 @@ function totalConsumptionSeries(_datas, _base) {
     }
     if (measured.length > 0) {
         out.push($.extend({}, _base, {
-            name: '{{Consommation totale mesurée}} (kWh)',
+            name: '{{Total mesuré}} (kWh)',
             data: measured,
             color: '#3498db',
             fillOpacity: 0.35,

@@ -800,6 +800,8 @@ class energy extends eqLogic {
 			sort($value);
 			$value = array_values($value);
 		}
+		// the power is the sum of instantaneous values that can carry decimals (an average over the cycle): whole watts
+		$return['total']['power'] = intval(round($return['total']['power']));
 		$return['total']['consumption'] = round($return['total']['consumption'], 2);
 		$return['total']['cost'] = round($return['total']['cost'], 2);
 		if ($perfRun !== null) {

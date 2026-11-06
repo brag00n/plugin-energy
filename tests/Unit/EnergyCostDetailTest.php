@@ -264,4 +264,11 @@ final class EnergyCostDetailTest extends EnergyTestCase {
 		$this->assertCount(2, $result['estimatedConsumption'], 'both days are estimated by the equipments');
 		$this->assertCount(1, $result['measuredConsumption'], 'only 4 November is measured');
 	}
+
+	public function testTheTotalPowerIsInWholeWatts(): void {
+		$a = $this->build(array(new GraphCmdDouble('power', array(), 1866.6666666667)), array());
+		$b = $this->build(array(new GraphCmdDouble('power', array(), 50.4)), array());
+		$result = $this->graph($a, $b);
+		$this->assertSame(1917, $result['total']['power']);
+	}
 }
