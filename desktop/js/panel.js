@@ -335,46 +335,31 @@ drawSimpleGraph('div_graphDetailConsumptionByObject',series);
 });
 }
 
-// The total consumption is one series, but its days do not all have the same origin: the days given by the total
-// counter (Linky) are measured, the others are estimates (sum of the equipments). When the plugin tells which days are
-// measured, the estimated stretches are drawn in grey (colour zones on the x axis) and the tooltip names the origin.
+// The total consumption is drawn as TWO curves: the estimate (sum of the consumption the equipments are declared to
+// draw, grey) and the measurement (total counter, blue). Their gap is the real efficiency of the loads: a radiator
+// whose relay is on does not draw its nominal power all the time. Without a total counter only the estimate exists.
 function totalConsumptionSeries(_datas, _base) {
-    var measured = _datas.measuredDays || [];
-    if (measured.length == 0) {
-        return [$.extend({}, _base, {data: _datas.totalConsumption})];
+    var estimated = _datas.estimatedConsumption || _datas.totalConsumption || [];
+    var measured = _datas.measuredConsumption || [];
+    var out = [];
+    if (estimated.length > 0) {
+        out.push($.extend({}, _base, {
+            name: '{{Consommation totale estimée}} (kWh)',
+            data: estimated,
+            color: '#95a5a6',
+            fillOpacity: 0.25
+        }));
     }
-    // x of a grouped point can differ from the day sent by the server by the time zone offset: compare to the nearest day
-    var isMeasuredDay = function (_x) {
-        return measured.some(function (_day) {
-            return Math.abs(_day - _x) < 12 * 3600 * 1000;
-        });
-    };
-    var zones = [], run = null;
-    _datas.totalConsumption.forEach(function (point) {
-        var isMeasured = isMeasuredDay(point[0]);
-        if (run === null || isMeasured != run) {
-            if (run !== null) {
-                // the points are grouped by day in local time: a boundary half a day earlier survives that shift
-                zones.push({value: point[0] - 12 * 3600 * 1000, color: run ? '#3498db' : '#95a5a6'});
-            }
-            run = isMeasured;
-        }
-    });
-    if (run !== null) {
-        zones.push({color: run ? '#3498db' : '#95a5a6'});
+    if (measured.length > 0) {
+        out.push($.extend({}, _base, {
+            name: '{{Consommation totale mesurée}} (kWh)',
+            data: measured,
+            color: '#3498db',
+            fillOpacity: 0.35,
+            stack: 3
+        }));
     }
-    return [$.extend({}, _base, {
-        data: _datas.totalConsumption,
-        zoneAxis: 'x',
-        zones: zones,
-        tooltip: {
-            valueDecimals: 2,
-            pointFormatter: function () {
-                var origin = isMeasuredDay(this.x) ? '{{mesurée par le compteur}}' : '{{estimée (somme des équipements)}}';
-                return '<span style="color:' + this.color + '">●</span> ' + this.series.name + ': <b>' + Highcharts.numberFormat(this.y, 2) + '</b> (' + origin + ')<br/>';
-            }
-        }
-    })];
+    return out;
 }
 
 function drawSimpleGraph(_el, _serie) {

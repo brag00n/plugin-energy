@@ -224,4 +224,44 @@ final class EnergyCostDetailTest extends EnergyTestCase {
 		$result = energy::getGraph('2026-11-02 00:00:00', '2026-11-04', 1, 'water');
 		$this->assertSame(0.0, $result['total']['cost']);
 	}
+
+	public function testTheEstimatedAndMeasuredTotalsAreTwoSeparateCurves(): void {
+		$this->setConfig('rateMode', 'fixed');
+		$this->setConfig('rate', '0.2');
+		$counter = $this->build(array(
+			new GraphCmdDouble('consumptionTotal', array(array('2026-11-04', '20'))),
+			new GraphCmdDouble('cost', array(array('2026-11-04', '4'))),
+		), $this->lines(), array('totalCounter' => 1));
+		$heater = $this->build(array(
+			new GraphCmdDouble('consumptionTotal', array(array('2026-11-04', '30'))),
+		), array(array('category' => 'heating', 'power' => '#5#', 'consumption' => '')));
+		$result = $this->graph($counter, $heater);
+		$this->assertEqualsWithDelta(30.0, $result['estimatedConsumption'][0][1], 0.0001, 'sum of the equipments');
+		$this->assertEqualsWithDelta(20.0, $result['measuredConsumption'][0][1], 0.0001, 'total counter');
+		$this->assertEqualsWithDelta(20.0, $result['totalConsumption'][0][1], 0.0001, 'the combined curve is unchanged');
+	}
+
+	public function testWithoutACounterTheEstimateIsTheOnlyTotal(): void {
+		$heater = $this->build(array(
+			new GraphCmdDouble('consumptionTotal', array(array('2026-11-03', '50'))),
+		), array(array('category' => 'heating', 'power' => '#5#', 'consumption' => '')));
+		$result = $this->graph($heater);
+		$this->assertCount(1, $result['estimatedConsumption']);
+		$this->assertSame(array(), $result['measuredConsumption']);
+	}
+
+	public function testTheEstimateKeepsTheDaysTheCounterDidNotRecord(): void {
+		$this->setConfig('rateMode', 'fixed');
+		$this->setConfig('rate', '0.2');
+		$counter = $this->build(array(
+			new GraphCmdDouble('consumptionTotal', array(array('2026-11-04', '1.5'))),
+			new GraphCmdDouble('cost', array(array('2026-11-04', '0.3'))),
+		), $this->lines(), array('totalCounter' => 1));
+		$heater = $this->build(array(
+			new GraphCmdDouble('consumptionTotal', array(array('2026-11-03', '50'), array('2026-11-04', '40'))),
+		), array(array('category' => 'heating', 'power' => '#5#', 'consumption' => '')));
+		$result = $this->graph($counter, $heater);
+		$this->assertCount(2, $result['estimatedConsumption'], 'both days are estimated by the equipments');
+		$this->assertCount(1, $result['measuredConsumption'], 'only 4 November is measured');
+	}
 }

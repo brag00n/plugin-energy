@@ -525,6 +525,8 @@ class energy extends eqLogic {
 			'costDetail' => array('hp' => array(), 'hc' => array(), 'unknown' => array(), 'subscription' => array()),
 			'totalConsumption' => array(),
 			'measuredDays' => array(),
+			'estimatedConsumption' => array(),
+			'measuredConsumption' => array(),
 			'translation' => array('other' => __('Autre', __FILE__), 'light' => __('Lumière', __FILE__), 'multimedia' => __('Multimedia', __FILE__), 'heating' => __('Chauffage', __FILE__), 'electrical' => __('Electroménager', __FILE__), 'automatism' => __('Automatisme', __FILE__)),
 			'object' => array(),
 			'total' => array('power' => 0, 'consumption' => 0, 'cost' => 0),
@@ -549,6 +551,8 @@ class energy extends eqLogic {
 		self::perfStop($perfStep, 'objects tree', 'object tree (' . count($objects) . ' objects)');
 
 		$costSplit = array('hp' => array(), 'hc' => array());
+		// sum of the equipments only (the total counter is not an equipment load), for the estimated total curve
+		$estimatedTotals = array();
 		foreach ($objects as $object) {
 			$return['object'][$object->getName()] = array();
 			$return['power'][$object->getName()] = array();
@@ -602,6 +606,13 @@ class energy extends eqLogic {
 							continue;
 						}
 						//log::add('energy', 'debug', '   > date -' . $value[0]);
+						if ($energy->getConfiguration('totalCounter') != 1) {
+							if (isset($estimatedTotals[$value[0]])) {
+								$estimatedTotals[$value[0]][1] += floatval($value[1]);
+							} else {
+								$estimatedTotals[$value[0]] = array($value[0], floatval($value[1]));
+							}
+						}
 						if (isset($return['totalConsumption'][$value[0]])) {
 							$return['totalConsumption'][$value[0]][1] += floatval($value[1]);
 							//log::add('energy', 'debug', '   > update -' . strval($return['totalConsumption'][$value[0]][1]));
@@ -712,6 +723,10 @@ class energy extends eqLogic {
 				// A counter whose source is down reads 0 everywhere: it must not blank the consumption and cost curves.
 				// A day it did not record (before it was installed or emptied) keeps the sum of the equipments, otherwise
 				// the curve would show a few kWh of the counter next to days of estimates.
+				// Two separate curves for the panel: the sum of the equipments (estimated, what the loads were declared to
+				// draw) and the total counter (measured). Their gap is the rendement of the loads.
+				$return['estimatedConsumption'] = $estimatedTotals;
+				$return['measuredConsumption'] = $counterConsumption;
 				if (count($counterConsumption) > 0) {
 					// days given by the counter (measured), the other days of the curve are estimates; the panel tells them apart
 					$return['measuredDays'] = array_keys($counterConsumption);
@@ -755,6 +770,14 @@ class energy extends eqLogic {
 			// Built equipment after equipment, so a day recorded only by a later equipment would come out of order
 			ksort($return['totalConsumption']);
 			$return['totalConsumption'] = array_values($return['totalConsumption']);
+		}
+		// Without a total counter, the estimate is the only total: it is the same curve as totalConsumption
+		if (count($return['estimatedConsumption']) == 0 && count($return['measuredConsumption']) == 0) {
+			$return['estimatedConsumption'] = $estimatedTotals;
+		}
+		foreach (array('estimatedConsumption', 'measuredConsumption') as $curve) {
+			ksort($return[$curve]);
+			$return[$curve] = array_values($return[$curve]);
 		}
 
 		if (isset($return['cost'])) {
