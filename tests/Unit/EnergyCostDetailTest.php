@@ -284,4 +284,48 @@ final class EnergyCostDetailTest extends EnergyTestCase {
 		$this->assertEquals($expected, $result['measuredDays'], 'the values, never a truncated key');
 		$this->assertEquals($expected, array_column($result['measuredConsumption'], 0), 'sorted by date');
 	}
+
+	private function fragmentScenario(): array {
+		$this->setConfig('rateMode', 'fixed');
+		$this->setConfig('rate', '0.2');
+		$counter = $this->build(array(
+			// 4 November: only a fragment (the counter was emptied that evening); 5 November: a full day
+			new GraphCmdDouble('consumptionTotal', array(array('2026-11-04', '1.74'), array('2026-11-05', '40'))),
+			new GraphCmdDouble('cost', array(array('2026-11-04', '0.3'), array('2026-11-05', '8'))),
+		), $this->lines(), array('totalCounter' => 1));
+		$heater = $this->build(array(
+			new GraphCmdDouble('consumptionTotal', array(array('2026-11-04', '60'), array('2026-11-05', '9'))),
+			new GraphCmdDouble('cost', array(array('2026-11-04', '12'))),
+		), array(array('category' => 'heating', 'power' => '#5#', 'consumption' => '')));
+		return array($counter, $heater);
+	}
+
+	public function testWithoutTheSettingTheFragmentReplacesTheDay(): void {
+		list($counter, $heater) = $this->fragmentScenario();
+		$result = $this->graph($counter, $heater);
+		$this->assertEquals(array($this->ms('2026-11-04'), $this->ms('2026-11-05')), $result['measuredDays']);
+		$this->assertEqualsWithDelta(1.74, $result['totalConsumption'][0][1], 0.0001);
+	}
+
+	public function testBeforeTheReliableDateTheCounterIsIgnored(): void {
+		list($counter, $heater) = $this->fragmentScenario();
+		$this->setConfig('counterReliableSince', '2026-11-05');
+		$result = $this->graph($counter, $heater);
+		$this->assertEquals(array($this->ms('2026-11-05')), $result['measuredDays'], 'only the full day is measured');
+		$this->assertEqualsWithDelta(60.0, $result['totalConsumption'][0][1], 0.0001, '4 November keeps the estimate');
+		$this->assertEqualsWithDelta(40.0, $result['totalConsumption'][1][1], 0.0001, '5 November is the counter');
+		$this->assertCount(1, $result['measuredConsumption']);
+		$this->assertEqualsWithDelta(60 + 40, $result['total']['consumption'], 0.0001);
+		$this->assertEqualsWithDelta(12.0 + 8.0, $result['total']['cost'], 0.0001, 'the fragment of cost is ignored as well');
+	}
+
+	public function testAnInvalidDateIsIgnored(): void {
+		list($counter, $heater) = $this->fragmentScenario();
+		foreach (array('not a date', '05/11/2026', '2026-13', ' ') as $bad) {
+			$this->setConfig('counterReliableSince', $bad);
+			$this->assertNull(energy::counterSinceMs(), $bad);
+		}
+		$this->setConfig('counterReliableSince', '2026-11-05');
+		$this->assertEquals($this->ms('2026-11-05'), energy::counterSinceMs());
+	}
 }

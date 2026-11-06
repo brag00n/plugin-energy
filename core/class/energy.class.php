@@ -444,6 +444,21 @@ class energy extends eqLogic {
 		}
 	}
 
+	/**
+	 * First day (ms, UTC midnight) from which the total counter is trusted, setting "counterReliableSince" (YYYY-MM-DD).
+	 * Before it the counter is ignored and the days keep the sum of the equipments: a counter that was emptied or installed
+	 * in the middle of a day holds a fragment of that day, which would replace a whole estimated day. Empty = no limit.
+	 *
+	 * @return float|null
+	 */
+	public static function counterSinceMs() {
+		$since = trim(strval(config::byKey('counterReliableSince', 'energy', '')));
+		if (!preg_match('/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/', $since)) {
+			return null;
+		}
+		return floatval(strtotime($since . ' UTC')) * 1000;
+	}
+
 	/** Adds the HP and HC costs of one equipment (see getCostSplit()) to the running split, by day. */
 	private static function addCostSplit(&$_split, $_equipmentSplit) {
 		foreach (array('hp', 'hc') as $part) {
@@ -622,6 +637,10 @@ class energy extends eqLogic {
 								$estimatedTotals[$value[0]] = array($value[0], floatval($value[1]));
 							}
 						}
+						// the total counter is not an equipment load: the days it does not replace keep the sum of the equipments only
+						if ($energy->getConfiguration('totalCounter') == 1) {
+							continue;
+						}
 						if (isset($return['totalConsumption'][$value[0]])) {
 							$return['totalConsumption'][$value[0]][1] += floatval($value[1]);
 							//log::add('energy', 'debug', '   > update -' . strval($return['totalConsumption'][$value[0]][1]));
@@ -688,6 +707,7 @@ class energy extends eqLogic {
 		self::perfStop($perfStep, 'equipments lookup', 'total counter lookup (' . count($counterCandidates) . ' equipments)');
 		foreach ($counterCandidates as $energy) {
 			if ($energy->getConfiguration('type') == $_energyType && $energy->getConfiguration('totalCounter') == 1) {
+				$counterSince = self::counterSinceMs();
 				$counterConsumption = array();
 				$counterConsumptionSum = 0;
 				$counterCost = array();
@@ -702,6 +722,9 @@ class energy extends eqLogic {
 							continue;
 						}
 						$value[0] = floatval(strtotime($value[0] . " UTC")) * 1000;
+						if ($counterSince !== null && $value[0] < $counterSince) {
+							continue;
+						}
 						if (isset($counterConsumption[$value[0]])) {
 							$counterConsumption[$value[0]][1] += floatval($value[1]);
 						} else {
@@ -720,6 +743,9 @@ class energy extends eqLogic {
 							continue;
 						}
 						$value[0] = floatval(strtotime($value[0] . " UTC")) * 1000;
+						if ($counterSince !== null && $value[0] < $counterSince) {
+							continue;
+						}
 						if (isset($counterCost[$value[0]])) {
 							$counterCost[$value[0]][1] += floatval($value[1]);
 						} else {
@@ -765,7 +791,7 @@ class energy extends eqLogic {
 					$return['total']['cost'] = $total;
 					// the split must describe the same cost as the curve: the counter's for its days, the equipments' otherwise
 					$counterSplit = array('hp' => array(), 'hc' => array());
-					self::addCostSplit($counterSplit, $energy->getCostSplit($_startTime, $_endTime));
+					self::addCostSplit($counterSplit, $energy->getCostSplit($_startTime, $_endTime, $counterSince));
 					foreach (array('hp', 'hc') as $part) {
 						foreach ($daysFromCounter as $day) {
 							unset($costSplit[$part][$day]);
@@ -875,7 +901,7 @@ class energy extends eqLogic {
 	 *
 	 * @return array {hp: {ms: amount}, hc: {ms: amount}}
 	 */
-	public function getCostSplit($_startTime = null, $_endTime = null) {
+	public function getCostSplit($_startTime = null, $_endTime = null, $_sinceMs = null) {
 		$split = array('hp' => array(), 'hc' => array());
 		$variable = (config::byKey('rateMode', 'energy') == 'variable');
 		$hasRateLine = false;
@@ -899,6 +925,9 @@ class energy extends eqLogic {
 					continue;
 				}
 				$day = floatval(strtotime($value[0] . " UTC")) * 1000;
+				if ($_sinceMs !== null && $day < $_sinceMs) {
+					continue;
+				}
 				$split[$part][$day] = (isset($split[$part][$day]) ? $split[$part][$day] : 0) + floatval($value[1]) * $rate;
 			}
 		}

@@ -103,6 +103,13 @@ if (!isConnect()) {
         </div>
         <div class="col-sm-6"><span class="help-block">{{Un index qui saute de plus que cette puissance (x1,5) multipliée par la durée du cycle est ignoré avec une alerte. 0 = désactivé.}}</span></div>
     </div>
+    <div class="form-group">
+        <label class="col-sm-2 control-label">{{Compteur total fiable à partir du}}</label>
+        <div class="col-sm-2">
+            <input class="form-control configKey input-sm" data-l1key="counterReliableSince" placeholder="AAAA-MM-JJ"/>
+        </div>
+        <div class="col-sm-6"><span class="help-block">{{Avant cette date, le compteur total est ignoré et les jours gardent la somme des équipements (un compteur vidé ou installé en cours de journée ne contient qu'une partie de ce jour). Vide = pas de limite.}}</span></div>
+    </div>
     <div class="rate fixed">
         <div class="form-group">
             <label class="col-sm-2 control-label">{{Tarif}}</label>
