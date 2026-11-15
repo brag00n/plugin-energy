@@ -175,4 +175,21 @@ final class PluginFilesTest extends TestCase {
 			}
 		}
 	}
+
+	/**
+	 * Jeedom builds the INSERT of a new equipment (and of a command) from the properties of the eqLogic / cmd class: a
+	 * property declared in class energy or energyCmd becomes a column that does not exist and no equipment can be created
+	 * ("Unknown column 'nowOverride' in 'field list'"). The state of the plugin lives in energyRuntime.
+	 */
+	public function testTheEquipmentClassesDeclareNoProperty(): void {
+		foreach (array('energy', 'energyCmd') as $class) {
+			$own = array();
+			foreach ((new ReflectionClass($class))->getProperties() as $property) {
+				if ($property->getDeclaringClass()->getName() === $class) {
+					$own[] = $property->getName();
+				}
+			}
+			$this->assertSame(array(), $own, 'class ' . $class . ' must not declare properties: ' . implode(', ', $own));
+		}
+	}
 }

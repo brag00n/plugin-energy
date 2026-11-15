@@ -49,3 +49,22 @@ class energyLogTypes {
 		return self::isDebugLevel() && self::isTypeOn($_type);
 	}
 }
+
+/*
+ * RUNTIME STATE OF THE PLUGIN
+ *
+ * Static properties that must NOT be declared in class energy: Jeedom builds the INSERT of a new equipment from the
+ * properties of the eqLogic class, so a property of class energy becomes a column that does not exist ("Unknown
+ * column 'nowOverride' in 'field list'", error 1054) and no equipment can be created any more.
+ */
+class energyRuntime {
+
+	/** Overrides the current time (timestamp) of cron15, only meant for the unit tests. */
+	public static $now = null;
+
+	/** Forces the performance traces on or off (null = follow the log level of the plugin), only meant for the unit tests. */
+	public static $perf = null;
+
+	/** @var array Counters of the current getGraph() run, see energy::perfStart() / perfStop() */
+	public static $perfStats = array();
+}

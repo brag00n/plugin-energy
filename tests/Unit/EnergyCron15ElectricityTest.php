@@ -99,7 +99,7 @@ final class EnergyCron15ElectricityTest extends EnergyTestCase {
 
 	public function testPowerWithoutCounterIsIntegratedOverTime(): void {
 		$now = mktime(12, 0, 0);
-		energy::$nowOverride = $now;
+		energyRuntime::$now = $now;
 		$energy = $this->makeEnergy('electricity', array(
 			array('category' => 'light', 'power' => '#5#', 'consumption' => ''),
 		), array('lastChangeTime#5#' => $now - 900, 'lastValue#5#' => 2000));
@@ -113,7 +113,7 @@ final class EnergyCron15ElectricityTest extends EnergyTestCase {
 
 	private function integratedHeater(int $secondsSinceLastCycle, float $lastPower, float $nowPower, array $configuration = array()): energy {
 		$now = mktime(12, 0, 0);
-		energy::$nowOverride = $now;
+		energyRuntime::$now = $now;
 		$energy = $this->makeEnergy('electricity', array(
 			array('category' => 'heating', 'power' => '#5#', 'consumption' => ''),
 		), array_merge(array('lastChangeTime#5#' => $now - $secondsSinceLastCycle, 'lastValue#5#' => $lastPower), $configuration));
@@ -180,7 +180,7 @@ final class EnergyCron15ElectricityTest extends EnergyTestCase {
 		$this->assertSame(0.0, $energy->getConfiguration('lastValue#5#'));
 		// the next normal cycle starts from the new reference: the radiator is now off, nothing more is credited
 		$before = $this->cmdValue($energy, 'consumptionHeating');
-		energy::$nowOverride = mktime(12, 15, 0);
+		energyRuntime::$now = mktime(12, 15, 0);
 		energy::cron15();
 		$this->assertEqualsWithDelta($before, $this->cmdValue($energy, 'consumptionHeating'), 0.0001);
 	}
@@ -190,7 +190,7 @@ final class EnergyCron15ElectricityTest extends EnergyTestCase {
 		$energy = $this->makeEnergy('electricity', array(
 			array('category' => 'heating', 'power' => '#5#', 'consumption' => ''),
 		), array('lastValue#5#' => 2000));
-		energy::$nowOverride = mktime(12, 0, 0);
+		energyRuntime::$now = mktime(12, 0, 0);
 		$this->setExpression('#5#', 2000);
 		energy::cron15();
 		$this->assertSame(0, $this->cmdValue($energy, 'consumptionHeating'));

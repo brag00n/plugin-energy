@@ -119,11 +119,11 @@ final class EnergyAnomalyStructureTest extends EnergyTestCase {
 		$now = mktime(12, 0, 0);
 		for ($i = 0; $i < 30; $i++) {
 			$this->setExpression('#9#', 0.5 * ($i + 1));
-			energy::$nowOverride = $now + $i * 900;
+			energyRuntime::$now = $now + $i * 900;
 			energy::cron15();
 		}
 		$this->setExpression('#9#', 500);
-		energy::$nowOverride = $now + 30 * 900;
+		energyRuntime::$now = $now + 30 * 900;
 		energy::cron15();
 		$traces = array_filter(log::$lines, function ($line) {
 			return strpos($line[2], '[jump]') === 0 || strpos($line[2], '[cron]') === 0 || strpos($line[2], 'Abnormal consumption') === 0;
@@ -138,7 +138,7 @@ final class EnergyAnomalyStructureTest extends EnergyTestCase {
 		$credited = array();
 		foreach (array('1', '0') as $enabled) {
 			eqLogic::reset();
-			energy::$nowOverride = null;
+			energyRuntime::$now = null;
 			$this->setConfig('energyAnomalyEnabled', $enabled);
 			$energy = $this->makeEnergy('electricity', array(
 				array('category' => 'heating', 'power' => '', 'consumption' => '#9#'),
@@ -146,7 +146,7 @@ final class EnergyAnomalyStructureTest extends EnergyTestCase {
 			$now = mktime(12, 0, 0);
 			foreach (array(0.5, 1.0, 1.5, 51.5, 52.0) as $i => $index) {
 				$this->setExpression('#9#', $index);
-				energy::$nowOverride = $now + $i * 900;
+				energyRuntime::$now = $now + $i * 900;
 				energy::cron15();
 			}
 			$credited[$enabled] = array($this->cmdValue($energy, 'consumptionHeating'), $this->cmdValue($energy, 'consumptionTotal'), $this->cmdValue($energy, 'cost'));
@@ -232,12 +232,12 @@ final class EnergyAnomalyStructureTest extends EnergyTestCase {
 		for ($i = 0; $i < 40; $i++) {
 			$this->setExpression('#8#', 30 * ($i + 1));
 			$this->setExpression('#9#', 0.5 * ($i + 1));
-			energy::$nowOverride = $now + $i * 900;
+			energyRuntime::$now = $now + $i * 900;
 			energy::cron15();
 		}
 		$this->setExpression('#8#', 30 * 40 + 300);   // 10x the water rate
 		$this->setExpression('#9#', 0.5 * 40 + 5);    // 10x the electricity rate
-		energy::$nowOverride = $now + 40 * 900;
+		energyRuntime::$now = $now + 40 * 900;
 		energy::cron15();
 		$warnings = implode("\n", array_map(function ($l) {
 			return $l[2];

@@ -193,7 +193,7 @@ final class EnergyCostDetailTest extends EnergyTestCase {
 		$this->setConfig('rateMode', 'fixed');
 		$this->setConfig('rate', '0.2');
 		$this->setConfig('subscriptionDaily', '0,66');
-		energy::$nowOverride = strtotime('2026-11-04 12:00:00');
+		energyRuntime::$now = strtotime('2026-11-04 12:00:00');
 		$meter = $this->build(array(
 			new GraphCmdDouble('cost', array(array('2026-11-03', '2'))),
 		), $this->lines());
@@ -219,7 +219,7 @@ final class EnergyCostDetailTest extends EnergyTestCase {
 
 	public function testTheSubscriptionIsOnlyForElectricity(): void {
 		$this->setConfig('subscriptionDaily', '0.66');
-		energy::$nowOverride = strtotime('2026-11-04 12:00:00');
+		energyRuntime::$now = strtotime('2026-11-04 12:00:00');
 		$object = new jeeObject(1, 'home');
 		$result = energy::getGraph('2026-11-02 00:00:00', '2026-11-04', 1, 'water');
 		$this->assertSame(0.0, $result['total']['cost']);

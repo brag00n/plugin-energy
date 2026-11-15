@@ -15,7 +15,7 @@ final class EnergyJumpWaterGasTest extends EnergyTestCase {
 	private function cycle(float $quantity, int $at): void {
 		$this->index += $quantity;
 		$this->setExpression('#8#', $this->index);
-		energy::$nowOverride = $at;
+		energyRuntime::$now = $at;
 		energy::cron15();
 	}
 
@@ -122,7 +122,7 @@ final class EnergyJumpWaterGasTest extends EnergyTestCase {
 		$this->meter('water');
 		$at = mktime(0, 0, 0, 10, 1, 2026);
 		for ($i = 0; $i < 96 * 20; $i++) {
-			energy::$nowOverride = $at;
+			energyRuntime::$now = $at;
 			$this->setExpression('#8#', 0);
 			energy::cron15();
 			$at += 900;
@@ -150,7 +150,7 @@ final class EnergyJumpWaterGasTest extends EnergyTestCase {
 		$end = $this->learn(30, 60, mktime(0, 0, 0, 11, 1, 2026));
 		$this->index = 0;
 		$this->setExpression('#8#', 5);
-		energy::$nowOverride = $end;
+		energyRuntime::$now = $end;
 		energy::cron15();
 		$this->assertSame(array(), $this->warnings());
 	}

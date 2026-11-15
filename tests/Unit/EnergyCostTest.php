@@ -130,12 +130,12 @@ final class EnergyCostTest extends EnergyTestCase {
 		$this->assertEqualsWithDelta(4.0, $this->cmdValue($energy, 'cost'), 0.0001);
 	}
 
-	/** Pins the clock cron15 reads (see energy::$nowOverride) to a given time today. */
+	/** Pins the clock cron15 reads (see energyRuntime::$now) to a given time today. */
 	private function freezeHour(int $hour, int $minute): void {
-		energy::$nowOverride = mktime($hour, $minute, 0);
+		energyRuntime::$now = mktime($hour, $minute, 0);
 	}
 
 	protected function tearDown(): void {
-		energy::$nowOverride = null;
+		energyRuntime::$now = null;
 	}
 }

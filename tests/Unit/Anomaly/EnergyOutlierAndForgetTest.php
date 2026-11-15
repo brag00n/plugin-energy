@@ -13,7 +13,7 @@ final class EnergyOutlierAndForgetTest extends EnergyTestCase {
 		for ($i = 0; $i <= $count; $i++) {
 			$index += ($i == 0) ? $firstKwh : 0.5;
 			$this->setExpression('#9#', $index);
-			energy::$nowOverride = $now + $i * 900;
+			energyRuntime::$now = $now + $i * 900;
 			energy::cron15();
 		}
 		return $energy;
@@ -38,7 +38,7 @@ final class EnergyOutlierAndForgetTest extends EnergyTestCase {
 		$energy = $this->cycles(100, 30);
 		log::$lines = array();
 		$this->setExpression('#9#', 0.5 * 30 + 100 + 50);
-		energy::$nowOverride = mktime(0, 0, 0, 11, 1, 2026) + 31 * 900;
+		energyRuntime::$now = mktime(0, 0, 0, 11, 1, 2026) + 31 * 900;
 		energy::cron15();
 		$this->assertStringContainsString('Abnormal consumption jump', implode("\n", array_map(function ($l) {
 			return $l[2];

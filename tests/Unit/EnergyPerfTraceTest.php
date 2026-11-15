@@ -52,10 +52,10 @@ final class EnergyPerfTraceTest extends EnergyTestCase {
 
 	public function testOverrideWinsOverTheLogLevel(): void {
 		log::$level = 400;
-		energy::$perfOverride = true;
+		energyRuntime::$perf = true;
 		$this->assertTrue(energy::isPerfEnabled());
 		log::$level = 100;
-		energy::$perfOverride = false;
+		energyRuntime::$perf = false;
 		$this->assertFalse(energy::isPerfEnabled());
 	}
 

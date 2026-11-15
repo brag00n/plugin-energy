@@ -22,11 +22,11 @@ final class EnergyCronWatchTest extends EnergyTestCase {
 	/** Runs `$cycles` cron15 cycles separated by the given intervals (seconds), starting at 12:00. */
 	private function runCycles(array $intervals): void {
 		$now = mktime(12, 0, 0);
-		energy::$nowOverride = $now;
+		energyRuntime::$now = $now;
 		energy::cron15();
 		foreach ($intervals as $interval) {
 			$now += $interval;
-			energy::$nowOverride = $now;
+			energyRuntime::$now = $now;
 			energy::cron15();
 		}
 	}

@@ -34,7 +34,7 @@ final class EnergyJumpDetectionTest extends EnergyTestCase {
 	private function cycle(float $kwh, int $at): void {
 		$this->index += $kwh;
 		$this->setExpression('#9#', $this->index);
-		energy::$nowOverride = $at;
+		energyRuntime::$now = $at;
 		energy::cron15();
 	}
 
@@ -179,7 +179,7 @@ final class EnergyJumpDetectionTest extends EnergyTestCase {
 		// 25 days with nothing at all, cycle after cycle
 		$at = mktime(0, 0, 0, 10, 1, 2026);
 		for ($i = 0; $i < 96 * 25; $i++) {
-			energy::$nowOverride = $at;
+			energyRuntime::$now = $at;
 			$this->setExpression('#9#', 0);
 			energy::cron15();
 			$at += 900;

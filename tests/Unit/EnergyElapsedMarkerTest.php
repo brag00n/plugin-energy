@@ -36,9 +36,9 @@ final class EnergyElapsedMarkerTest extends EnergyTestCase {
 		$this->heater();
 		$received = array();
 		$base = mktime(12, 0, 0);
-		energy::$nowOverride = $base;
+		energyRuntime::$now = $base;
 		energy::cron15();
-		energy::$nowOverride = $base + $seconds;
+		energyRuntime::$now = $base + $seconds;
 		// the double returns the expression unchanged, which is what we want to see
 		$expected = energy::replaceElapsed(self::EXPRESSION, min($seconds, energy::integrationMaxGap()));
 		energy::cron15();
@@ -62,9 +62,9 @@ final class EnergyElapsedMarkerTest extends EnergyTestCase {
 		));
 		$this->setExpression('#5#', 2000);
 		$base = mktime(12, 0, 0);
-		energy::$nowOverride = $base;
+		energyRuntime::$now = $base;
 		energy::cron15();
-		energy::$nowOverride = $base + 900;
+		energyRuntime::$now = $base + 900;
 		energy::cron15();
 		$this->assertEqualsWithDelta(0.5, $this->cmdValue($energy, 'consumptionTotal'), 0.0001, '2000 W x 15 min');
 	}
@@ -74,11 +74,11 @@ final class EnergyElapsedMarkerTest extends EnergyTestCase {
 		$this->setExpression('durationbetween(#9#, 1, -15 minutes, now) / 15 * 2000', 1200);
 		$energy = $this->heater();
 		$base = mktime(12, 0, 0);
-		energy::$nowOverride = $base;
+		energyRuntime::$now = $base;
 		energy::cron15();
-		energy::$nowOverride = $base + 900;
+		energyRuntime::$now = $base + 900;
 		energy::cron15();
-		energy::$nowOverride = $base + 1800;
+		energyRuntime::$now = $base + 1800;
 		energy::cron15();
 		// 1200 W read at the first cycle is credited over the second interval, 1200 W read at the second over the third: 2 x 0.3 kWh
 		$this->assertEqualsWithDelta(0.6, $this->cmdValue($energy, 'consumptionTotal'), 0.0001);
@@ -88,11 +88,11 @@ final class EnergyElapsedMarkerTest extends EnergyTestCase {
 		$this->setExpression('durationbetween(#9#, 1, -30 minutes, now) / 30 * 2000', 1000);
 		$energy = $this->heater();
 		$base = mktime(12, 0, 0);
-		energy::$nowOverride = $base;
+		energyRuntime::$now = $base;
 		energy::cron15();
-		energy::$nowOverride = $base + 3 * 3600;
+		energyRuntime::$now = $base + 3 * 3600;
 		energy::cron15();
-		energy::$nowOverride = $base + 3 * 3600 + 900;
+		energyRuntime::$now = $base + 3 * 3600 + 900;
 		energy::cron15();
 		// no 3 hour credit and no refused expression: 1000 W read after the gap x 15 min = 0.25 kWh
 		$this->assertEqualsWithDelta(0.25, $this->cmdValue($energy, 'consumptionTotal'), 0.0001);

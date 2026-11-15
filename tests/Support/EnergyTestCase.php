@@ -7,8 +7,8 @@ abstract class EnergyTestCase extends TestCase {
 
 	protected function setUp(): void {
 		eqLogic::reset();
-		energy::$nowOverride = null;
-		energy::$perfOverride = null;
+		energyRuntime::$now = null;
+		energyRuntime::$perf = null;
 		energyLogTypes::$override = array();
 		// A fixed zone keeps date('Gi', ...) based tests deterministic
 		date_default_timezone_set('Europe/Paris');

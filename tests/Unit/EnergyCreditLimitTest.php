@@ -11,7 +11,7 @@ final class EnergyCreditLimitTest extends EnergyTestCase {
 
 	private function cycle(int $at, float $index): void {
 		$this->setExpression('#10#', $index);
-		energy::$nowOverride = $at;
+		energyRuntime::$now = $at;
 		energy::cron15();
 	}
 

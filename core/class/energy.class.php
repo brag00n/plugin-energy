@@ -107,22 +107,13 @@ class energy extends eqLogic {
 		return ($hourtime >= $start || $hourtime <= $end);
 	}
 
-	/** Overrides the current time (timestamp) of cron15, only meant for the unit tests. */
-	public static $nowOverride = null;
-
-	/** Forces the performance traces on or off (null = follow the log level of the plugin), only meant for the unit tests. */
-	public static $perfOverride = null;
-
-	/** @var array Counters of the current getGraph() run, see perfStart() / perfStop() */
-	private static $perfStats = array();
-
 	/**
 	 * Performance traces are only produced when the log level of the plugin is "debug" AND the "performance" box of
 	 * the plugin configuration is on (see energyLogTypes), so they cost nothing in a normal run.
 	 */
 	public static function isPerfEnabled() {
-		if (self::$perfOverride !== null) {
-			return self::$perfOverride;
+		if (energyRuntime::$perf !== null) {
+			return energyRuntime::$perf;
 		}
 		return energyLogTypes::enabled('perf');
 	}
@@ -145,12 +136,12 @@ class energy extends eqLogic {
 			return;
 		}
 		$ms = (microtime(true) - $_start) * 1000;
-		if (!isset(self::$perfStats[$_group])) {
-			self::$perfStats[$_group] = array('calls' => 0, 'ms' => 0, 'rows' => 0);
+		if (!isset(energyRuntime::$perfStats[$_group])) {
+			energyRuntime::$perfStats[$_group] = array('calls' => 0, 'ms' => 0, 'rows' => 0);
 		}
-		self::$perfStats[$_group]['calls']++;
-		self::$perfStats[$_group]['ms'] += $ms;
-		self::$perfStats[$_group]['rows'] += intval($_rows);
+		energyRuntime::$perfStats[$_group]['calls']++;
+		energyRuntime::$perfStats[$_group]['ms'] += $ms;
+		energyRuntime::$perfStats[$_group]['rows'] += intval($_rows);
 		log::add('energy', 'debug', '[perf] ' . $_label . ': ' . round($ms) . ' ms' . ($_rows !== null ? ', ' . intval($_rows) . ' rows' : ''));
 	}
 
@@ -159,7 +150,7 @@ class energy extends eqLogic {
 		if ($_start === null) {
 			return;
 		}
-		$stats = self::$perfStats;
+		$stats = energyRuntime::$perfStats;
 		uasort($stats, function ($a, $b) {
 			return $b['ms'] <=> $a['ms'];
 		});
@@ -230,7 +221,7 @@ class energy extends eqLogic {
 	}
 
 	public static function cron15() {
-		$cycleNow = (self::$nowOverride !== null) ? self::$nowOverride : time();
+		$cycleNow = (energyRuntime::$now !== null) ? energyRuntime::$now : time();
 		$cycleSeconds = self::cycleSeconds($cycleNow);
 		$datetime = date('Y-m-d H:i:00', $cycleNow);
 		$powerTotal = 0;
@@ -248,7 +239,7 @@ class energy extends eqLogic {
 					$key = self::getConfEnergyKey($confEnergy, $position);
 					if ($confEnergy['power'] != '') {
 						// The same elapsed time is used to write the expression (#elapsed#) and to credit the energy
-						$nowtime = (self::$nowOverride !== null) ? self::$nowOverride : strtotime('now');
+						$nowtime = (energyRuntime::$now !== null) ? energyRuntime::$now : strtotime('now');
 						$lastChange = $energy->getConfiguration('lastChangeTime' . $key);
 						$elapsed = self::integrationElapsed($lastChange, $nowtime);
 						$value = floatval(jeedom::evaluateExpression(self::replaceElapsed($confEnergy['power'], $elapsed['seconds'])));
@@ -511,7 +502,7 @@ class energy extends eqLogic {
 		if ($daily <= 0) {
 			return;
 		}
-		$today = strtotime(date('Y-m-d', (self::$nowOverride !== null) ? self::$nowOverride : time()));
+		$today = strtotime(date('Y-m-d', (energyRuntime::$now !== null) ? energyRuntime::$now : time()));
 		$last = min(strtotime(date('Y-m-d', strtotime($_endTime))), $today);
 		$position = array();
 		foreach ($_return['cost'] as $index => $point) {
@@ -560,7 +551,7 @@ class energy extends eqLogic {
 		if ($_energyType == 'water') {
 			$return['consumptionUnite'] = 'L';
 		}
-		self::$perfStats = array();
+		energyRuntime::$perfStats = array();
 		$perfRun = self::perfStart();
 		if ($perfRun !== null) {
 			log::add('energy', 'debug', '[perf] getGraph start: object ' . $_object_id . ', type ' . $_energyType . ', from ' . $_startTime . ' to ' . $_endTime);

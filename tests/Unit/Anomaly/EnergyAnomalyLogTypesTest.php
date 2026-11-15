@@ -27,12 +27,12 @@ final class EnergyAnomalyLogTypesTest extends EnergyTestCase {
 		$now = mktime(0, 0, 0, 11, 1, 2026);
 		for ($i = 0; $i < $count; $i++) {
 			$this->setExpression('#9#', 0.5 * ($i + 1));
-			energy::$nowOverride = $now + $i * 900;
+			energyRuntime::$now = $now + $i * 900;
 			energy::cron15();
 		}
 		if ($jumpKwh > 0) {
 			$this->setExpression('#9#', 0.5 * $count + $jumpKwh);
-			energy::$nowOverride = $now + $count * 900;
+			energyRuntime::$now = $now + $count * 900;
 			energy::cron15();
 		}
 		return $energy;
@@ -92,9 +92,9 @@ final class EnergyAnomalyLogTypesTest extends EnergyTestCase {
 	public function testTheLateCronWarningIsWrittenWhateverTheBoxes(): void {
 		log::$level = 300;
 		$this->setConfig('logAnomaly', '0');
-		energy::$nowOverride = mktime(12, 0, 0);
+		energyRuntime::$now = mktime(12, 0, 0);
 		energy::cron15();
-		energy::$nowOverride = mktime(12, 0, 0) + 25 * 3600;
+		energyRuntime::$now = mktime(12, 0, 0) + 25 * 3600;
 		energy::cron15();
 		$this->assertStringContainsString('cron15 ran late', implode("\n", $this->warnings()));
 	}
@@ -103,7 +103,7 @@ final class EnergyAnomalyLogTypesTest extends EnergyTestCase {
 		$results = array();
 		foreach (array('1', '0') as $box) {
 			eqLogic::reset();
-			energy::$nowOverride = null;
+			energyRuntime::$now = null;
 			log::$level = 100;
 			$this->setConfig('logAnomaly', $box);
 			$energy = $this->runCycles(30);
