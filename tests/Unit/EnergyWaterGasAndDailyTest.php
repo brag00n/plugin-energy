@@ -26,9 +26,12 @@ final class EnergyWaterGasAndDailyTest extends EnergyTestCase {
 		$energy = $this->makeEnergy('water', array($this->meterRow('#2#')), array('previous#2#' => 90000));
 		$this->setExpression('#2#', 3);
 		energy::cron15();
-		$this->assertSame(3.0, $energy->getConfiguration('previous#2#'));
+		$this->assertSame(90000, $energy->getConfiguration('previous#2#'), 'first reading below the index: held');
+		$this->setExpression('#2#', 4);
+		energy::cron15();
+		$this->assertSame(4.0, $energy->getConfiguration('previous#2#'), 'second reading: the reset is confirmed');
 		$this->assertSame(0, $this->cmdValue($energy, 'consumptionTotal'));
-		$this->setExpression('#2#', 8);
+		$this->setExpression('#2#', 9);
 		energy::cron15();
 		$this->assertEqualsWithDelta(5, $this->cmdValue($energy, 'consumptionTotal'), 0.0001);
 	}

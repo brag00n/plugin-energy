@@ -50,11 +50,15 @@ final class EnergyCron15ElectricityTest extends EnergyTestCase {
 	}
 
 	public function testCounterResetRealignsTheIndexAndCountsNothing(): void {
+		// The first reading below the index is only held (see EnergyIndexGlitchTest); the second one confirms the reset
 		$energy = $this->makeEnergy('electricity', array($this->counterRow('light', '#10#')), array('previous#10#' => 5000));
 		$this->setExpression('#10#', 12);
 		energy::cron15();
+		$this->assertSame(5000, $energy->getConfiguration('previous#10#'), 'held, not realigned yet');
+		$this->setExpression('#10#', 12.5);
+		energy::cron15();
 		$this->assertSame(0, $this->cmdValue($energy, 'consumptionTotal'));
-		$this->assertSame(12.0, $energy->getConfiguration('previous#10#'));
+		$this->assertSame(12.5, $energy->getConfiguration('previous#10#'));
 		$this->assertNotEmpty(array_filter(log::$lines, function ($line) {
 			return strpos($line[2], 'Counter reset detected') === 0;
 		}));
@@ -64,7 +68,9 @@ final class EnergyCron15ElectricityTest extends EnergyTestCase {
 		$energy = $this->makeEnergy('electricity', array($this->counterRow('light', '#10#')), array('previous#10#' => 5000));
 		$this->setExpression('#10#', 12);
 		energy::cron15();
-		$this->setExpression('#10#', 15);
+		$this->setExpression('#10#', 12.5);
+		energy::cron15();
+		$this->setExpression('#10#', 15.5);
 		energy::cron15();
 		$this->assertEqualsWithDelta(3.0, $this->cmdValue($energy, 'consumptionTotal'), 0.0001);
 	}

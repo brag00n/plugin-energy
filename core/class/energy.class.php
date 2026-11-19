@@ -220,6 +220,37 @@ class energy extends eqLogic {
 		return ($last > 0 && $_now > $last) ? $_now - $last : self::CYCLE_NOMINAL;
 	}
 
+	/**
+	 * A DECREASING INDEX IS HELD FOR ONE CYCLE BEFORE IT IS BELIEVED.
+	 * A real energy counter never goes down, except when it is reset or replaced. But the source of an index can be
+	 * wrong for a moment: in production the Linky gateway (a MySensors node) now and then publishes a power (VA) instead
+	 * of the index, so the total counter read 0 for one cycle and then came back to 20 kWh. Realigning at once on
+	 * that 0 made the next cycle read "0 => 20 kWh" (refused by the subscribed power limit), so the consumption of both
+	 * cycles was lost, several kWh a day.
+	 * The first decrease is therefore only remembered (setting "pendingDrop<key>"), the reference index is kept and nothing
+	 * is credited. If the next reading is back to the reference or above, it was a glitch: the delta from the reference
+	 * is credited normally. If the index goes down again, the counter really was reset: realign on it.
+	 */
+	private static function holdIndexDecrease($_energy, $_key, $_previous, $_value) {
+		$pending = $_energy->getConfiguration('pendingDrop' . $_key, '');
+		if (!is_numeric($pending)) {
+			$_energy->setConfiguration('pendingDrop' . $_key, $_value);
+			log::add('energy', 'warning', 'Index decrease held for ' . $_energy->getHumanName() . ' (' . $_key . ') : ' . $_previous . ' => ' . $_value . ', nothing credited and the reference index is kept. If the next reading is back, the source was wrong for a moment.');
+			return;
+		}
+		log::add('energy', 'debug', 'Counter reset detected for ' . $_energy->getHumanName() . ' (' . $_key . ') : ' . $_previous . ' => ' . $_value);
+		$_energy->setConfiguration('previous' . $_key, $_value);
+		$_energy->setConfiguration('pendingDrop' . $_key, null);
+	}
+
+	/** The index is back to normal: a held decrease was a glitch of the source. */
+	private static function releaseIndexDecrease($_energy, $_key, $_previous, $_value) {
+		if (is_numeric($_energy->getConfiguration('pendingDrop' . $_key, ''))) {
+			log::add('energy', 'info', 'Index back to normal for ' . $_energy->getHumanName() . ' (' . $_key . ') : ' . $_previous . ' => ' . $_value . ', the held decrease was a glitch of the source.');
+			$_energy->setConfiguration('pendingDrop' . $_key, null);
+		}
+	}
+
 	public static function cron15() {
 		$cycleNow = (energyRuntime::$now !== null) ? energyRuntime::$now : time();
 		$cycleSeconds = self::cycleSeconds($cycleNow);
@@ -271,16 +302,18 @@ class energy extends eqLogic {
 						$maxCredit = self::maxCreditKwh($cycleSeconds);
 						if (($value - $previous) >= 0 && $maxCredit !== null && ($value - $previous) > $maxCredit) {
 							// Impossible for the subscribed power: ignored, and the index is realigned so that only this cycle is lost
+							self::releaseIndexDecrease($energy, $key, $previous, $value);
 							log::add('energy', 'warning', 'Credit ignored for ' . $energy->getHumanName() . ' (' . $key . ') : index ' . $previous . ' => ' . $value . ' = ' . round($value - $previous, 3) . ' kWh in ' . $cycleSeconds . ' s, more than ' . round($maxCredit, 3) . ' kWh which is the limit for ' . config::byKey('energySubscribedPower', 'energy', 0) . ' kVA (x' . self::POWER_TOLERANCE . '). The source of the index is probably wrong.');
 							$energy->setConfiguration('previous' . $key, $value);
 						} elseif (($value - $previous) >= 0) {
+							self::releaseIndexDecrease($energy, $key, $previous, $value);
 							$consumptions[$confEnergy['category']] += ($value - $previous);
 							$anomalyLines[] = energyAnomaly::line($key, $confEnergy['category'], 'index delta', $value - $previous, 'index ' . $previous . ' => ' . $value);
 							$energy->setConfiguration('previous' . $key, $value);
 						} elseif (is_numeric($rawValue)) {
-							// Counter was reset or replaced: realign on the new index, otherwise nothing is counted until it exceeds the old one
-							log::add('energy', 'debug', 'Counter reset detected for ' . $energy->getHumanName() . ' (' . $key . ') : ' . $previous . ' => ' . $value);
-							$energy->setConfiguration('previous' . $key, $value);
+							// The index went down: a glitch of the source or a counter that was reset or replaced.
+							// The first reading is held, the second one confirms a real reset (see holdIndexDecrease()).
+							self::holdIndexDecrease($energy, $key, $previous, $value);
 						}
 					}
 					$position++;
@@ -384,13 +417,13 @@ class energy extends eqLogic {
 					$rawValue = evaluate(cmd::cmdToValue($confEnergy['consumption']));
 					$value = floatval($rawValue);
 					if (($value - $previous) >= 0) {
+						self::releaseIndexDecrease($energy, $key, $previous, $value);
 						$totalConsumption += ($value - $previous);
 						$anomalyLines[] = energyAnomaly::line($key, $energy->getConfiguration('type'), 'index delta', $value - $previous, 'index ' . $previous . ' => ' . $value);
 						$energy->setConfiguration('previous' . $key, $value);
 					} elseif (is_numeric($rawValue)) {
-						// Counter was reset or replaced: realign on the new index
-						log::add('energy', 'debug', 'Counter reset detected for ' . $energy->getHumanName() . ' (' . $key . ') : ' . $previous . ' => ' . $value);
-						$energy->setConfiguration('previous' . $key, $value);
+						// Same rule as for electricity: the first decrease is held, the second one confirms a real reset
+						self::holdIndexDecrease($energy, $key, $previous, $value);
 					}
 					$position++;
 				}
@@ -940,10 +973,12 @@ class energy extends eqLogic {
 				$this->setConfiguration('lastValue' . $key, 0);
 				if ($confEnergy['consumption'] != '') {
 					$this->setConfiguration('previous' . $key, floatval(evaluate(cmd::cmdToValue($confEnergy['consumption']))));
+					$this->setConfiguration('pendingDrop' . $key, null);
 				}
 			} else {
 				if ($confEnergy['consumption'] != '') {
 					$this->setConfiguration('previous' . $key, floatval(evaluate(cmd::cmdToValue($confEnergy['consumption']))));
+					$this->setConfiguration('pendingDrop' . $key, null);
 				}
 			}
 		}
