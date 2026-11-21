@@ -24,35 +24,6 @@ try {
 		throw new Exception(__('401 - Accès non autorisé', __FILE__));
 	}
 
-	if (init('action') == 'applyCostTo') {
-		if (init('cost') == '') {
-			throw new Exception(__('Vous devez d\'abord enregistrer le coût avant de pouvoir l\'appliquer : ', __FILE__) . init('cost'));
-		}
-		$cost = config::byKey(init('cost'), 'energy');
-		if (!is_array($cost)) {
-			throw new Exception(__('Aucun coût trouvé : ', __FILE__) . init('cost'));
-		}
-		$ids = json_decode(init('ids'), true);
-		foreach ($ids as $id) {
-			$eqLogic = eqLogic::byId($id);
-			if (!is_object($eqLogic) || $eqLogic->getEqType_name() != 'energy') {
-				continue;
-			}
-			$eqLogic->setConfiguration('rateMode', $cost['rateMode']);
-			$eqLogic->setConfiguration('rate', $cost['rate']);
-			$eqLogic->setConfiguration('rateHp', $cost['rateHp']);
-			$eqLogic->setConfiguration('rateHc', $cost['rateHc']);
-			$eqLogic->setConfiguration('startHc', $cost['startHc']);
-			$eqLogic->setConfiguration('endHc', $cost['endHc']);
-			$eqLogic->setConfiguration('startHc2', $cost['startHc2']);
-			$eqLogic->setConfiguration('endHc2', $cost['endHc2']);
-			$eqLogic->setConfiguration('startHc3', $cost['startHc3']);
-			$eqLogic->setConfiguration('endHc3', $cost['endHc3']);
-			$eqLogic->save();
-		}
-		ajax::success();
-	}
-
 	if (init('action') == 'getData') {
 		if (init('object_id') == '') {
 			$_GET['object_id'] = $_SESSION['user']->getOptions('defaultDashboardObject');
@@ -68,8 +39,13 @@ try {
 			'start' => init('dateStart'),
 			'end' => init('dateEnd'),
 		);
+		foreach ($date as $key => $value) {
+			if ($value != '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+				throw new Exception(__('Format de date invalide (attendu AAAA-MM-JJ) : ', __FILE__) . $value);
+			}
+		}
 		if ($date['start'] == '') {
-			$date['start'] = date('Y-m-d', strtotime('-1 month'));
+			$date['start'] = date('Y-m-d', strtotime('-7 days'));
 			if (init('groupBy', 'day') == 'month') {
 				$date['start'] = date('Y-m-d', strtotime('-1 year'));
 			}
@@ -77,7 +53,19 @@ try {
 		if ($date['end'] == '') {
 			$date['end'] = date('Y-m-d');
 		}
-		$energy = energy::getGraph($date['start'] . ' 00:00:00', $date['end'], $object->getId(), init('energyType'));
+		$energyType = init('energyType', 'electricity');
+		if (!in_array($energyType, array('electricity', 'water', 'gas'))) {
+			throw new Exception(__('Type d\'énergie invalide : ', __FILE__) . $energyType);
+		}
+		if (energy::isPerfEnabled()) {
+			// ajax::success() ends the script: log the total duration of the request when PHP shuts down.
+			// Compared with the time felt in the browser, it tells whether the delay is on the server or in the page.
+			$perfRequestStart = $_SERVER['REQUEST_TIME_FLOAT'] ?? microtime(true);
+			register_shutdown_function(function () use ($perfRequestStart, $object) {
+				log::add('energy', 'debug', '[perf] ajax getData for object ' . $object->getId() . ' finished: ' . round((microtime(true) - $perfRequestStart) * 1000) . ' ms since the request started, peak memory ' . round(memory_get_peak_usage(true) / 1048576) . ' MB');
+			});
+		}
+		$energy = energy::getGraph($date['start'] . ' 00:00:00', $date['end'], $object->getId(), $energyType);
 		ajax::success(array(
 			'datas' => $energy,
 			'date' => $date,
@@ -90,8 +78,11 @@ try {
 	}
 
 	if (init('action') == 'emptyHistory') {
+		if (!isConnect('admin')) {
+			throw new Exception(__('401 - Accès non autorisé', __FILE__));
+		}
 		$eqLogic = eqLogic::byId(init('id'));
-		if (!is_object($eqLogic)) {
+		if (!is_object($eqLogic) || $eqLogic->getEqType_name() != 'energy') {
 			throw new Exception(__('Equipement introuvable : ', __FILE__) . init('id'));
 		}
 		$eqLogic->emptyHistory();

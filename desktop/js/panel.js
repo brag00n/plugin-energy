@@ -95,24 +95,101 @@ function getDatas(_object_id, _dateStart, _dateEnd) {
             $('#div_energy').setValues(data.result, '.energyAttr');
 
             var series = []
-            series.push({
-                step: true,
-                name: '{{Coût}} ('+data.result.currency+')',
-                data:  data.result.datas.cost,
-                type: 'column',
-                stack : 1,
+            // The cost is split into peak hours, off-peak hours and unknown (no HP/HC information) when the plugin knows it
+            var costDetail = data.result.datas.costDetail || {};
+            var costParts = [
+                ['hp', '{{Coût HP}}', '#e74c3c'],
+                ['hc', '{{Coût HC}}', '#3498db'],
+                ['unknown', '{{Coût inconnu (sans info HP/HC)}}', '#95a5a6'],
+                ['subscription', '{{Abonnement}}', '#f39c12']
+            ];
+            var hasDetail = false;
+            costParts.forEach(function (part) {
+                if (costDetail[part[0]] && costDetail[part[0]].length > 0) {
+                    hasDetail = true;
+                }
+            });
+            (hasDetail ? costParts : [['cost', '{{Coût}}', null]]).forEach(function (part) {
+                series.push({
+                    step: true,
+                    name: part[1] + ' ('+data.result.currency+')',
+                    data: hasDetail ? (costDetail[part[0]] || []) : data.result.datas.cost,
+                    color: part[2] || undefined,
+                    type: 'column',
+                    stack : 1,
+                    unite : data.result.currency,
+                    stacking : 'normal',
+                    dataGrouping: {
+                        approximation: "sum",
+                        enabled: true,
+                        forced: true,
+                        units: [[groupBy,[1]]]
+                    },
+                    tooltip: hasDetail ? {
+                        valueDecimals: 2,
+                        // share of the part in the bar (point.percentage is computed by the stacking)
+                        pointFormatter: function () {
+                            return '<span style="color:' + this.color + '">●</span> ' + this.series.name + ': <b>' + Highcharts.numberFormat(this.y, 2) + '</b> (' + Highcharts.numberFormat(this.percentage, 1) + ' %)<br/>';
+                        }
+                    } : {
+                        valueDecimals: 2
+                    },
+                });
+            });
+            // Total cost of the day, written above the stacked bar (a line series without line, so it does not stack)
+            // Colour of the text of the page: dark text on the light theme, light text on the dark theme
+            var totalColor = $('body').css('color') || '#555555';
+            if (hasDetail) series.push({
+                name: '{{Coût total}} ('+data.result.currency+')',
+                data: data.result.datas.cost,
+                type: 'scatter',
+                color: totalColor,
+                lineWidth: 0,
+                marker: {enabled: false},
+                states: {hover: {lineWidthPlus: 0}},
+                enableMouseTracking: true,
                 unite : data.result.currency,
-                stacking : 'normal',
                 dataGrouping: {
                     approximation: "sum",
                     enabled: true,
                     forced: true,
                     units: [[groupBy,[1]]]
                 },
+                dataLabels: {
+                    enabled: true,
+                    crop: false,
+                    overflow: 'allow',
+                    allowOverlap: true,
+                    verticalAlign: 'bottom',
+                    y: -4,
+                    formatter: function () {
+                        return Highcharts.numberFormat(this.y, 2) + ' ' + data.result.currency;
+                    },
+                    style: {fontWeight: 'bold', textOutline: 'none', color: totalColor}
+                },
                 tooltip: {
                     valueDecimals: 2
-                },
+                }
             });
+            // Share of HP, HC and unknown over the period shown, next to the total cost of the header
+            var shareLabel = $('#span_costShare');
+            shareLabel.hide().empty();
+            if (hasDetail) {
+                var sums = {}, all = 0;
+                costParts.forEach(function (part) {
+                    sums[part[0]] = 0;
+                    (costDetail[part[0]] || []).forEach(function (point) {
+                        sums[part[0]] += point[1];
+                    });
+                    all += sums[part[0]];
+                });
+                if (all > 0) {
+                    costParts.forEach(function (part) {
+                        shareLabel.append('<span class="label" style="background:' + part[2] + '; margin-right: 3px;">' + part[1].replace('{{', '').replace('}}', '') + ' ' + Highcharts.numberFormat(100 * sums[part[0]] / all, 1) + ' %</span>');
+                    });
+                    shareLabel.show();
+                }
+            }
             drawSimpleGraph('div_graphCost',series);
             
             
@@ -120,7 +197,7 @@ function getDatas(_object_id, _dateStart, _dateEnd) {
                 var series = []
                 if(isset(data.result.datas.totalConsumption)){
                    series.push({
-                    name: '{{Consommation total}} ('+data.result.datas.consumptionUnite+')',
+                    name: '{{Total}} ('+data.result.datas.consumptionUnite+')',
                     data:  data.result.datas.totalConsumption,
                     type: 'column',
                     stack : 1,
@@ -170,11 +247,10 @@ function getDatas(_object_id, _dateStart, _dateEnd) {
         drawSimpleGraph('div_graphPower',series);
 
         var series = []
-        if(isset( data.result.datas.totalConsumption)){
-           series.push({
+        if(isset(data.result.datas.totalConsumption)){
+           totalConsumptionSeries(data.result.datas, {
             step: true,
-            name: '{{Consommation totale}} (kWh)',
-            data:  data.result.datas.totalConsumption,
+            name: '{{Total}} (kWh)',
             type: 'areaspline',
             stack : 2,
             dataGrouping: {
@@ -187,7 +263,7 @@ function getDatas(_object_id, _dateStart, _dateEnd) {
             tooltip: {
                 valueDecimals: 2
             },
-        });
+        }).forEach(function (totalSerie) { series.push(totalSerie); });
        }
        for(var i in data.result.datas.category){
         if($.isArray(data.result.datas.category[i]) && data.result.datas.category[i].length > 0){
@@ -215,12 +291,11 @@ function getDatas(_object_id, _dateStart, _dateEnd) {
 
     var series = []
     if(isset(data.result.datas.totalConsumption)){
-       series.push({
-        step: true,
-        name: '{{Consommation totale}} (kWh)',
-        data:  data.result.datas.totalConsumption,
-        type: 'areaspline',
-        stack : 2,
+           totalConsumptionSeries(data.result.datas, {
+            step: true,
+            name: '{{Total}} (kWh)',
+            type: 'areaspline',
+            stack : 2,
         stacking : 'normal',
         dataGrouping: {
             approximation: "sum",
@@ -231,8 +306,8 @@ function getDatas(_object_id, _dateStart, _dateEnd) {
         tooltip: {
             valueDecimals: 2
         },
-    });
-   }
+    }).forEach(function (totalSerie) { series.push(totalSerie); });
+       }
    for(var i in data.result.datas.object){
     if($.isArray(data.result.datas.object[i]) && data.result.datas.object[i].length > 0){
         series.push({
@@ -258,6 +333,33 @@ drawSimpleGraph('div_graphDetailConsumptionByObject',series);
 
 }
 });
+}
+
+// The total consumption is drawn as TWO curves: the estimate (sum of the consumption the equipments are declared to
+// draw, grey) and the measurement (total counter, blue). Their gap is the real efficiency of the loads: a radiator
+// whose relay is on does not draw its nominal power all the time. Without a total counter only the estimate exists.
+function totalConsumptionSeries(_datas, _base) {
+    var estimated = _datas.estimatedConsumption || _datas.totalConsumption || [];
+    var measured = _datas.measuredConsumption || [];
+    var out = [];
+    if (estimated.length > 0) {
+        out.push($.extend({}, _base, {
+            name: '{{Total estimé}} (kWh)',
+            data: estimated,
+            color: '#95a5a6',
+            fillOpacity: 0.25
+        }));
+    }
+    if (measured.length > 0) {
+        out.push($.extend({}, _base, {
+            name: '{{Total mesuré}} (kWh)',
+            data: measured,
+            color: '#3498db',
+            fillOpacity: 0.35,
+            stack: 3
+        }));
+    }
+    return out;
 }
 
 function drawSimpleGraph(_el, _serie) {
@@ -322,7 +424,20 @@ function drawSimpleGraph(_el, _serie) {
             }
         },
         xAxis: {
-            type: 'datetime'
+            type: 'datetime',
+            labels: {
+                // First letter of the weekday before the date (L 3. Nov.). Only for the labels that are a day: the
+                // hour labels (06:00) and the month labels are left as they are. The times are UTC shifted, hence getUTCDay.
+                formatter: function () {
+                    var text = this.axis.defaultLabelFormatter.call(this);
+                    var format = this.dateTimeLabelFormat || '';
+                    if (typeof format === 'string' && /%[ed]/.test(format)) {
+                        var letters = ['{{D}}', '{{L}}', '{{M}}', '{{M}}', '{{J}}', '{{V}}', '{{S}}'];
+                        return letters[new Date(this.value).getUTCDay()] + ' ' + text;
+                    }
+                    return text;
+                }
+            }
         },
         scrollbar: {
             barBackgroundColor: 'gray',

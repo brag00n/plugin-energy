@@ -90,6 +90,26 @@ if (!isConnect()) {
             </select>
         </div>
     </div>
+    <div class="form-group">
+        <label class="col-sm-2 control-label">{{Abonnement par jour}}</label>
+        <div class="col-sm-2">
+            <input class="form-control configKey input-sm" data-l1key="subscriptionDaily" placeholder="0"/>
+        </div>
+    </div>
+    <div class="form-group">
+        <label class="col-sm-2 control-label">{{Puissance souscrite (kVA)}}</label>
+        <div class="col-sm-2">
+            <input class="form-control configKey input-sm" data-l1key="energySubscribedPower" placeholder="0"/>
+        </div>
+        <div class="col-sm-6"><span class="help-block">{{Un index qui saute de plus que cette puissance (x1,5) multipliée par la durée du cycle est ignoré avec une alerte. 0 = désactivé.}}</span></div>
+    </div>
+    <div class="form-group">
+        <label class="col-sm-2 control-label">{{Compteur total fiable à partir du}}</label>
+        <div class="col-sm-2">
+            <input class="form-control configKey input-sm" data-l1key="counterReliableSince" placeholder="AAAA-MM-JJ"/>
+        </div>
+        <div class="col-sm-6"><span class="help-block">{{Avant cette date, le compteur total est ignoré et les jours gardent la somme des équipements (un compteur vidé ou installé en cours de journée ne contient qu'une partie de ce jour). Vide = pas de limite.}}</span></div>
+    </div>
     <div class="rate fixed">
         <div class="form-group">
             <label class="col-sm-2 control-label">{{Tarif}}</label>
@@ -147,6 +167,29 @@ if (!isConnect()) {
         </div>
     </div>
 </div>
+</div>
+
+<legend><i class="fa fa-file-text-o"></i> {{Logs}}</legend>
+<div class="form-group">
+    <div class="col-sm-offset-2 col-sm-10">
+        <div class="alert alert-info">
+            {{Ces cases choisissent quelles traces de debug sont écrites. Elles ne servent que lorsque le niveau de log du plugin est sur « Debug » (Réglages → Système → Configuration → Logs). Les alertes (saut de consommation, cron en retard) sont toujours écrites.}}
+        </div>
+    </div>
+</div>
+<div class="form-group">
+    <label class="col-sm-2 control-label">{{Performance}}</label>
+    <div class="col-sm-4">
+        <input type="checkbox" class="configKey" data-l1key="logPerf"/>
+        <span class="help-block">{{Durées et volumes de l'affichage du tableau de bord (lignes [perf]).}}</span>
+    </div>
+</div>
+<div class="form-group">
+    <label class="col-sm-2 control-label">{{Anomalie de consommation}}</label>
+    <div class="col-sm-4">
+        <input type="checkbox" class="configKey" data-l1key="logAnomaly"/>
+        <span class="help-block">{{Décisions de la détection des sauts de consommation et cycles du cron (lignes [jump] et [cron]).}}</span>
+    </div>
 </div>
 </fieldset>
 </form>

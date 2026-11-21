@@ -1,0 +1,11 @@
+{
+    "name": "brag00n/plugin-energy-tests",
+    "description": "Unit tests of the Jeedom energy plugin",
+    "type": "project",
+    "require-dev": {
+        "phpunit/phpunit": "^10.5"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}
