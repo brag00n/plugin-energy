@@ -31,6 +31,7 @@ final class EnergyTemperatureTest extends EnergyTestCase {
 		$result = energy::getGraph('2026-01-01 00:00:00', '2026-01-31', 1);
 		$this->assertSame(array(), $result['temperature']);
 		$this->assertSame(array(), DB::$statements);
+		$this->assertNotEmpty(log::$lines, 'the ignored setting is logged');
 	}
 
 	public function testTheCommandIsReadFromTheSettingOfTheEnergyType(): void {

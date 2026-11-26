@@ -586,7 +586,14 @@ class energy extends eqLogic {
 		if ($setting == '') {
 			return array();
 		}
-		$cmd = cmd::byString($setting);
+		// cmd::byString() throws when the name no longer matches (renamed equipment...): the curve is then left out,
+		// a temperature that cannot be read must never break the consumption charts
+		try {
+			$cmd = cmd::byString($setting);
+		} catch (Exception $e) {
+			log::add('energy', 'warning', 'Outdoor temperature ignored: ' . $e->getMessage());
+			return array();
+		}
 		if (!is_object($cmd)) {
 			return array();
 		}

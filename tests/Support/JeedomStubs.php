@@ -151,7 +151,11 @@ class cmd {
 	public static $byString = array();
 
 	public static function byString($_string) {
-		return self::$byString[$_string] ?? null;
+		// like the core: an unknown command is an exception, not null
+		if (!isset(self::$byString[$_string])) {
+			throw new Exception('Commande introuvable : ' . $_string);
+		}
+		return self::$byString[$_string];
 	}
 
 	public $id = 0;
