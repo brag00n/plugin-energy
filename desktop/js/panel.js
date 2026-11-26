@@ -190,6 +190,7 @@ function getDatas(_object_id, _dateStart, _dateEnd) {
                     shareLabel.show();
                 }
             }
+            addTemperatureSeries(series, data.result.datas, groupBy, true);
             drawSimpleGraph('div_graphCost',series);
             
             
@@ -367,11 +368,11 @@ function totalConsumptionSeries(_datas, _base) {
 
 // The outdoor temperature (set in the plugin configuration) is a line on a second axis, on the right: it is not an
 // energy and is never stacked with the consumption. Without a command the payload has no point and nothing is added.
-function addTemperatureSeries(_series, _datas, _groupBy) {
+function addTemperatureSeries(_series, _datas, _groupBy, _withLabels) {
     if (!$.isArray(_datas.temperature) || _datas.temperature.length == 0) {
         return;
     }
-    _series.push({
+    var serie = {
         name: '{{Température ext.}} (°C)',
         data: _datas.temperature,
         type: 'line',
@@ -388,7 +389,23 @@ function addTemperatureSeries(_series, _datas, _groupBy) {
         tooltip: {
             valueDecimals: 1
         }
-    });
+    };
+    // value written above each point (cost chart): one decimal and the unit, in the colour of the curve
+    if (_withLabels) {
+        serie.dataLabels = {
+            enabled: true,
+            crop: false,
+            overflow: 'allow',
+            allowOverlap: true,
+            verticalAlign: 'bottom',
+            y: -6,
+            formatter: function () {
+                return Highcharts.numberFormat(this.y, 1) + '°';
+            },
+            style: {fontWeight: 'bold', textOutline: 'none', color: '#e67e22'}
+        };
+    }
+    _series.push(serie);
 }
 
 function drawSimpleGraph(_el, _serie) {
