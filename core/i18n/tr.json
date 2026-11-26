@@ -101,7 +101,9 @@
         "HP": "HP",
         "HC": "HC",
         "Puissance": "Güç",
+        "Puissance (W)": "Güç (W)",
         "Consommation": "Consommation",
+        "Consommation (kWh)": "Consommation (kWh)",
         "Quantité (L)": "Quantité (L)",
         "Quantité": "Quantité"
     },

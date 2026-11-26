@@ -131,7 +131,7 @@ function addConfEnergy(_energy) {
         div += '<option value="hc" class="total">{{HC}}</option>';
         div += '</select>';
         div += '</div>';
-        div += '<label class="col-sm-1 control-label">{{Puissance}}</label>';
+        div += '<label class="col-sm-1 control-label">{{Puissance (W)}}</label>';
         div += '<div class="col-sm-2 has-success">';
         div += '<div class="input-group">';
         div += '<input class="confEnergyAttr form-control input-sm" data-l1key="power" />';
@@ -140,7 +140,7 @@ function addConfEnergy(_energy) {
         div += '</span>';
         div += '</div>';
         div += '</div>';
-        div += '<label class="col-sm-1 control-label">{{Consommation}}</label>';
+        div += '<label class="col-sm-1 control-label">{{Consommation (kWh)}}</label>';
         div += '<div class="col-sm-2 has-warning">';
         div += '<div class="input-group">';
         div += '<input class="confEnergyAttr form-control input-sm" data-l1key="consumption" />';

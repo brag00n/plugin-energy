@@ -101,7 +101,9 @@
         "HP": "HP",
         "HC": "HC",
         "Puissance": "Macht",
+        "Puissance (W)": "Macht (W)",
         "Consommation": "Verbrauch",
+        "Consommation (kWh)": "Verbrauch (kWh)",
         "Quantité (L)": "Menge (L)",
         "Quantité": "Menge"
     },
