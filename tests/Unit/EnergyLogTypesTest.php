@@ -75,7 +75,7 @@ final class EnergyLogTypesTest extends EnergyTestCase {
 	// ---- the class
 
 	public function testTheTypesAreDeclaredInOnePlace(): void {
-		$this->assertSame(array('perf' => 'logPerf', 'anomaly' => 'logAnomaly'), energyLogTypes::TYPES);
+		$this->assertSame(array('perf' => 'logPerf', 'anomaly' => 'logAnomaly', 'catchup' => 'logCatchup'), energyLogTypes::TYPES);
 	}
 
 	public function testAnUnknownTypeIsNotBlocked(): void {

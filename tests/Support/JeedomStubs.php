@@ -48,6 +48,7 @@ class eqLogic {
 		DB::$statements = array();
 		DB::$throw = null;
 		DB::$rows = array();
+		DB::$handler = null;
 		history::$emptied = array();
 		cmd::$values = array();
 		cmd::$byString = array();
@@ -347,11 +348,19 @@ class DB {
 	public static $throw = null;
 	/** Rows returned by every Prepare(). */
 	public static $rows = array();
+	/** Optional callable (sql, values) => rows|null: a test that needs a real store answers here (null = default). */
+	public static $handler = null;
 
 	public static function Prepare($_sql, $_values, $_fetch) {
 		self::$statements[] = array($_sql, $_values);
 		if (self::$throw !== null) {
 			throw self::$throw;
+		}
+		if (self::$handler !== null) {
+			$answer = call_user_func(self::$handler, $_sql, $_values);
+			if ($answer !== null) {
+				return $answer;
+			}
 		}
 		return self::$rows;
 	}

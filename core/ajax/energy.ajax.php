@@ -89,6 +89,47 @@ try {
 		ajax::success();
 	}
 
+	/* CATCH-UP of the history from an Enedis export: administrator only, see core/class/energyCatchup.class.php */
+	if (strpos(init('action'), 'catchup') === 0) {
+		if (!isConnect('admin')) {
+			throw new Exception(__('401 - Accès non autorisé', __FILE__));
+		}
+		if (init('action') == 'catchupInit') {
+			ajax::success(array('targets' => energyCatchup::targets(), 'backups' => energyCatchup::listBackups(), 'periods' => json_decode(strval(config::byKey('catchupPeriods', 'energy', '[]')), true), 'steps' => energyCatchup::STEPS));
+		}
+		if (init('action') == 'catchupUpload') {
+			if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+				throw new Exception(__('Aucun fichier reçu (ou fichier trop gros pour le serveur).', __FILE__));
+			}
+			ajax::success(energyCatchup::storeUpload($_FILES['file']['tmp_name'], $_FILES['file']['name']));
+		}
+		if (init('action') == 'catchupPeriodHint') {
+			ajax::success(energyCatchup::periodHint(init('energy_id'), init('from'), init('to')));
+		}
+		if (init('action') == 'catchupSavePeriods') {
+			$periods = energyCatchup::normalizePeriods(json_decode(init('periods'), true));
+			config::save('catchupPeriods', json_encode($periods), 'energy');
+			ajax::success($periods);
+		}
+		if (init('action') == 'catchupAnalyze') {
+			ajax::success(energyCatchup::analyze(json_decode(init('params'), true), init('id')));
+		}
+		if (init('action') == 'catchupStep') {
+			ajax::success(energyCatchup::runStep(init('id'), init('step'), json_decode(init('params'), true)));
+		}
+		if (init('action') == 'catchupDiscard') {
+			energyCatchup::discard(init('id'));
+			ajax::success();
+		}
+		if (init('action') == 'catchupRestore') {
+			ajax::success(energyCatchup::restore(init('name')));
+		}
+		if (init('action') == 'catchupDelete') {
+			energyCatchup::deleteBackup(init('name'));
+			ajax::success();
+		}
+	}
+
 	throw new Exception(__('Aucune méthode correspondante à : ', __FILE__) . init('action'));
 	/*     * *********Catch exeption*************** */
 } catch (Exception $e) {

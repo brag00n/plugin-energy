@@ -202,6 +202,23 @@ if (!isConnect()) {
 </div>
 </div>
 
+<legend><i class="fas fa-history"></i> {{Rattrapage depuis Enedis}}</legend>
+<div class="form-group">
+    <label class="col-sm-2 control-label">{{Import}} <sup><i class="fas fa-question-circle tooltips" title="{{Complète l'historique du compteur total avec l'export quotidien d'Enedis et le HC/HP de vos factures EDF, saisi à la main. Une sauvegarde de l'historique concerné est faite avant toute écriture.}}"></i></sup></label>
+    <div class="col-sm-4">
+        <a class="btn btn-default btn-sm" id="bt_catchupOpen"><i class="fas fa-file-import"></i> {{Importer un export Enedis}}</a>
+    </div>
+</div>
+<div class="form-group">
+    <label class="col-sm-2 control-label">{{Sauvegardes}} <sup><i class="fas fa-question-circle tooltips" title="{{Une sauvegarde est créée avant chaque import : « Restaurer » remet l'historique des jours importés tel qu'il était. Rien n'est supprimé automatiquement.}}"></i></sup></label>
+    <div class="col-sm-8">
+        <table class="table table-condensed" id="table_catchupBackups">
+            <thead><tr><th>{{Date}}</th><th>{{Plage}}</th><th>{{Jours}}</th><th>{{Lignes}}</th><th></th><th></th></tr></thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
+
 <legend><i class="fa fa-file-text-o"></i> {{Logs}}</legend>
 <div class="form-group">
     <div class="col-sm-offset-2 col-sm-10">
@@ -224,9 +241,17 @@ if (!isConnect()) {
         <span class="help-block">{{Décisions de la détection des sauts de consommation et cycles du cron (lignes [jump] et [cron]).}}</span>
     </div>
 </div>
+<div class="form-group">
+    <label class="col-sm-2 control-label">{{Rattrapage}}</label>
+    <div class="col-sm-4">
+        <input type="checkbox" class="configKey" data-l1key="logCatchup"/>
+        <span class="help-block">{{Étapes du rattrapage de l'historique depuis Enedis (lignes [catchup], jour par jour).}}</span>
+    </div>
+</div>
 </fieldset>
 </form>
 
+<script src="plugins/energy/desktop/js/catchup.js"></script>
 <script>
  $('#form_configEnergy').delegate('.enableType','change', function () {
     if($(this).value() == 1){
