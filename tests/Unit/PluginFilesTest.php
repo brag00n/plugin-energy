@@ -195,6 +195,24 @@ final class PluginFilesTest extends TestCase {
 		$this->assertStringContainsString('catchup.plain(data.result)', $this->read('desktop/js/catchup.js'));
 	}
 
+	/**
+	 * When everything went well the only button left of a modal is "Fermer". The buttons are found by their class or their
+	 * position, never by a bootbox attribute (data-bb-handler), which the version of Jeedom may not give.
+	 */
+	public function testTheModalsKeepOnlyTheCloseButtonOnceDone(): void {
+		foreach (array('desktop/js/rates.js', 'desktop/js/catchup.js') as $file) {
+			$js = $this->read($file);
+			$this->assertStringNotContainsString('data-bb-handler', $js, $file . ' must not depend on a bootbox attribute');
+			$this->assertStringContainsString("'{{Fermer}}'", $js, $file);
+		}
+		$rates = $this->read('desktop/js/rates.js');
+		$this->assertStringContainsString('footer.apply.hide();', $rates);
+		$this->assertStringContainsString('.btn-success', $rates);
+		$catchup = $this->read('desktop/js/catchup.js');
+		$this->assertStringContainsString('footer.next.toggle(catchup.step < 4 && !catchup.imported)', $catchup);
+		$this->assertStringContainsString('footer.back.toggle(catchup.step > 1 && !catchup.running && !catchup.imported)', $catchup);
+	}
+
 	/** The tariff periods table and its cost catch-up modal chain ajax calls too, and must be loaded through include_file. */
 	public function testTheTariffPeriodsScriptIsLoadedAndDoesNotTriggerTheLoadingScreen(): void {
 		$this->assertStringContainsString("include_file('desktop', 'rates', 'js', 'energy')", $this->read('plugin_info/configuration.php'));

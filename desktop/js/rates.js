@@ -195,11 +195,11 @@ rates.open = function (_from) {
             apply: {label: '{{Appliquer}}', className: 'btn-success', callback: function () { rates.apply(_from); return false; }}
         }
     });
-    rates.box.find('[data-bb-handler=apply]').prop('disabled', true);
+    rates.footer().apply.prop('disabled', true);
     var preview = function () {
         var id = rates.targets.length > 1 ? $('#sel_rateEnergy').val() : energyId;
         $('#div_rateBody').html('<p><i class="fas fa-spinner fa-spin"></i> {{Analyse en cours…}}</p>');
-        rates.box.find('[data-bb-handler=apply]').prop('disabled', true);
+        rates.footer().apply.prop('disabled', true);
         rates.call({action: 'catchupRatePreview', energy_id: id, from: _from}, function (result) {
             var s = result.summary;
             var html = '<div class="alert alert-info">' + s.from + ' → ' + s.to + ' · ' + s.days + ' {{jours}} · {{coût actuel}} <strong>' + s.current + '</strong> → {{nouveau}} <strong>' + s.new + '</strong> · {{écart}} ' + s.gap + (s.gapPercent === null ? '' : ' (' + s.gapPercent + ' %)') + ' · ' + s.withoutSplit + ' {{jour(s) sans HC/HP}}</div>';
@@ -207,7 +207,7 @@ rates.open = function (_from) {
             $('#div_rateBody').html(html);
             $('#ta_ratePreview').val(result.text);
             $('#bt_rateCopyPreview').on('click', function () { rates.copy('#ta_ratePreview'); });
-            rates.box.find('[data-bb-handler=apply]').prop('disabled', false);
+            rates.footer().apply.prop('disabled', false);
         }, function (error) {
             $('#div_rateBody').empty();
             $('#div_rateAlert').html('<div class="alert alert-danger">' + rates.esc(error) + '</div>');
@@ -238,11 +238,18 @@ rates.progress = function (_states) {
     return '<div class="progress"><div class="progress-bar' + (_states.failed ? ' progress-bar-danger' : '') + '" style="width:' + percent + '%">' + percent + ' %</div></div>' + html + '</ul>';
 };
 
+/* The buttons of the footer, found by their class (btn-default: close, btn-success: apply) and not by an attribute of the
+ * dialog, which depends on the version of bootbox. */
+rates.footer = function () {
+    var footer = rates.box.find('.modal-footer');
+    return {all: footer.find('button, a.btn'), apply: footer.find('.btn-success'), close: footer.find('.btn-default')};
+};
+
 rates.apply = function (_from) {
     rates.running = true;
-    var footer = rates.box.find('.modal-footer');
-    footer.find('[data-bb-handler=apply]').hide();
-    footer.find('[data-bb-handler=cancel]').prop('disabled', true);
+    var footer = rates.footer();
+    footer.apply.hide();
+    footer.close.prop('disabled', true);
     var energyId = rates.targets.length > 1 ? $('#sel_rateEnergy').val() : rates.targets[0].id;
     $('#sel_rateEnergy').prop('disabled', true);
     var states = {};
@@ -256,7 +263,9 @@ rates.apply = function (_from) {
         $('#div_rateBody').html(html);
         $('#ta_rateResult').val(_result.text);
         $('#bt_rateCopyResult').on('click', function () { rates.copy('#ta_rateResult'); });
-        footer.find('[data-bb-handler=cancel]').prop('disabled', false).text(_ok ? '{{Fermer}}' : '{{Annuler}}');
+        // everything went well: the only button left is "Fermer"; after an error, "Annuler" stays
+        footer.apply.hide();
+        footer.close.prop('disabled', false).text(_ok ? '{{Fermer}}' : '{{Annuler}}').show();
     };
     var run = function (_step) {
         states[_step] = 'run';

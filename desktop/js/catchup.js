@@ -122,11 +122,19 @@ catchup.cancel = function () {
     return true;
 };
 
+/* The buttons of the footer, found by their label of the dialog (the order of creation: cancel, back, next) and by their
+ * class, not by an attribute that depends on the version of bootbox. */
+catchup.footer = function () {
+    var buttons = catchup.box.find('.modal-footer').find('button, a.btn');
+    return {all: buttons, cancel: buttons.eq(0), back: buttons.eq(1), next: buttons.eq(2)};
+};
+
 catchup.buttons = function () {
-    var footer = catchup.box.find('.modal-footer');
-    footer.find('[data-bb-handler=back]').toggle(catchup.step > 1 && !catchup.running && !catchup.imported);
-    footer.find('[data-bb-handler=next]').toggle(catchup.step < 4).prop('disabled', !catchup.canNext());
-    footer.find('[data-bb-handler=cancel]').text(catchup.imported ? '{{Fermer}}' : '{{Annuler}}').prop('disabled', catchup.running);
+    var footer = catchup.footer();
+    footer.back.toggle(catchup.step > 1 && !catchup.running && !catchup.imported);
+    // once everything is imported, "Fermer" is the only button left
+    footer.next.toggle(catchup.step < 4 && !catchup.imported).prop('disabled', !catchup.canNext());
+    footer.cancel.text(catchup.imported ? '{{Fermer}}' : '{{Annuler}}').prop('disabled', catchup.running);
 };
 
 catchup.canNext = function () {
