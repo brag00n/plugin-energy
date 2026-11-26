@@ -273,7 +273,6 @@
     "plugins\/energy\/desktop\/js\/rates.js": {
         "en cours": "current",
         "Recalculer les coûts": "Recalculate the costs",
-        "Sauvegardez d\\'abord la configuration": "Save the configuration first",
         "Plages de tarification enregistrées.": "Tariff periods saved.",
         "Aucun équipement « compteur total » d\\'électricité : créez-le d\\'abord.": "Aucun équipement « compteur total » d\\'électricité : créez-le d\\'abord.",
         "Recalcul des coûts": "Cost recalculation",
@@ -292,7 +291,9 @@
         "Recalcul terminé sans erreur.": "Recalculation finished without error.",
         "Recalcul interrompu : restaurez la sauvegarde si besoin.": "Recalculation interrupted: restore the backup if needed.",
         "Sauvegarde": "Sauvegarde",
-        "Fermer": "Fermer"
+        "Fermer": "Fermer",
+        "Enregistrez d\\'abord les plages": "Save the periods first",
+        "Lecture des plages enregistrées impossible": "The saved periods could not be read"
     },
     "plugins\/energy\/core\/class\/energyRates.class.php": {
         "Plage de tarification invalide (ligne ": "Invalid tariff period (line ",

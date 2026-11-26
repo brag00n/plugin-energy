@@ -187,6 +187,14 @@ final class PluginFilesTest extends TestCase {
 		}
 	}
 
+	/** The messages of the ajax errors come wrapped in a span by Jeedom; the modals show the text, and the buttons wait for the read. */
+	public function testTheModalsShowThePlainTextOfAnErrorAndWaitForTheReadOfThePeriods(): void {
+		$rates = $this->read('desktop/js/rates.js');
+		$this->assertStringContainsString('rates.plain(data.result)', $rates);
+		$this->assertStringContainsString('rates.loaded && saved.indexOf', $rates);
+		$this->assertStringContainsString('catchup.plain(data.result)', $this->read('desktop/js/catchup.js'));
+	}
+
 	/** The tariff periods table and its cost catch-up modal chain ajax calls too, and must be loaded through include_file. */
 	public function testTheTariffPeriodsScriptIsLoadedAndDoesNotTriggerTheLoadingScreen(): void {
 		$this->assertStringContainsString("include_file('desktop', 'rates', 'js', 'energy')", $this->read('plugin_info/configuration.php'));

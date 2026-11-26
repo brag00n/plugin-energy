@@ -22,9 +22,22 @@ class energyRates {
 		return floatval(str_replace(',', '.', strval($_value)));
 	}
 
+	/**
+	 * A setting that holds a JSON list. Jeedom decodes a JSON value by itself when it reads a setting (config::byKey returns an
+	 * array then, and "Array" once cast to a string): both the text and the decoded list are accepted.
+	 */
+	public static function jsonSetting($_key, $_default = '[]') {
+		$value = config::byKey($_key, 'energy', $_default);
+		if (is_array($value)) {
+			return $value;
+		}
+		$decoded = json_decode(strval($value), true);
+		return is_array($decoded) ? $decoded : array();
+	}
+
 	/** Sets of tariffs memorized by period, sorted by start date. */
 	public static function periods() {
-		$periods = json_decode(strval(config::byKey('ratePeriods', 'energy', '[]')), true);
+		$periods = self::jsonSetting('ratePeriods');
 		if (!is_array($periods)) {
 			return array();
 		}

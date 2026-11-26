@@ -134,6 +134,14 @@ final class EnergyRatesTest extends EnergyTestCase {
 
 	/* -------------------------------------------------------------- which tariffs for which date */
 
+	public function testPeriodsSavedAsJsonAreReadBackWhenTheCoreDecodesThem(): void {
+		// config::byKey of Jeedom returns an array for a JSON value: reading it with strval() lost every period
+		energyRates::save(array(array('from' => '2026-01-01', 'to' => '', 'rateHp' => '0,2')));
+		$this->assertIsArray(config::byKey('ratePeriods', 'energy'), 'the double behaves like the core');
+		$this->assertCount(1, energyRates::periods());
+		$this->assertSame('2026-01-01', energyRates::periodFor('2026-03-01')['from']);
+	}
+
 	public function testWithoutAnyPeriodTheConfigurationIsUsed(): void {
 		$this->setConfig('rateMode', 'variable');
 		$this->setConfig('rateHp', '0,30');

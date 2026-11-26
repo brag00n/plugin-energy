@@ -310,7 +310,15 @@ class config {
 
 	public static function byKey($_key, $_plugin = 'core', $_default = '') {
 		$k = $_plugin . '::' . $_key;
-		return array_key_exists($k, self::$values) ? self::$values[$k] : $_default;
+		$value = array_key_exists($k, self::$values) ? self::$values[$k] : $_default;
+		// like the Jeedom core: a value saved as a JSON object or list comes back already decoded
+		if (is_string($value) && strlen($value) > 1 && ($value[0] == '[' || $value[0] == '{')) {
+			$decoded = json_decode($value, true);
+			if (is_array($decoded)) {
+				return $decoded;
+			}
+		}
+		return $value;
 	}
 
 	public static function save($_key, $_value, $_plugin = 'core') {

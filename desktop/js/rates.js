@@ -7,9 +7,15 @@ var rates = {
     targets: [],
     steps: {},
     saved: [],
+    loaded: false,
     running: false,
     done: false,
     box: null
+};
+
+/* Jeedom wraps the message of an ajax error in <span id="span_errorMessage">…</span>: only the text is shown */
+rates.plain = function (_message) {
+    return $('<div>').html(_message === null || _message === undefined ? '' : String(_message)).text();
 };
 
 rates.esc = function (_text) {
@@ -26,7 +32,7 @@ rates.call = function (_data, _success, _error) {
         global: false,
         error: function (request, status, error) {
             if (_error) {
-                _error(error);
+                _error(rates.plain(error));
             } else {
                 handleAjaxError(request, status, error);
             }
@@ -34,9 +40,9 @@ rates.call = function (_data, _success, _error) {
         success: function (data) {
             if (data.state != 'ok') {
                 if (_error) {
-                    _error(data.result);
+                    _error(rates.plain(data.result));
                 } else {
-                    $('#div_alert').showAlert({message: data.result, level: 'danger'});
+                    $('#div_alert').showAlert({message: rates.plain(data.result), level: 'danger'});
                 }
                 return;
             }
@@ -101,8 +107,9 @@ rates.refreshButtons = function () {
     $('#table_ratePeriods tbody tr').each(function () {
         var p = {};
         $(this).find('.ratePeriod').each(function () { p[$(this).attr('data-key')] = $(this).val(); });
-        var same = saved.indexOf(JSON.stringify(rates.normalized(p))) !== -1;
-        $(this).find('.bt_rateCatchup').toggleClass('disabled', !same).attr('title', same ? '' : '{{Sauvegardez d\'abord la configuration}}');
+        // nothing is enabled until the saved periods were read: a failed read would otherwise leave every button active
+        var same = rates.loaded && saved.indexOf(JSON.stringify(rates.normalized(p))) !== -1;
+        $(this).find('.bt_rateCatchup').toggleClass('disabled', !same).attr('title', same ? '' : (rates.loaded ? '{{Enregistrez d\'abord les plages}}' : '{{Lecture des plages enregistrées impossible}}'));
     });
 };
 
@@ -127,6 +134,7 @@ rates.add = function () {
 
 rates.load = function () {
     rates.call({action: 'catchupRatePeriods'}, function (result) {
+        rates.loaded = true;
         rates.saved = result.periods;
         rates.targets = result.targets;
         rates.steps = result.steps;
@@ -138,6 +146,7 @@ rates.load = function () {
 rates.saveBeforePage = function () {
     return new Promise(function (resolve, reject) {
         rates.call({action: 'catchupRateSave', periods: JSON.stringify(rates.read())}, function (periods) {
+            rates.loaded = true;
             rates.saved = periods;
             rates.refreshButtons();
             resolve();

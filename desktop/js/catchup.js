@@ -24,7 +24,7 @@ catchup.call = function (_data, _success, _error, _ajaxOptions) {
         global: false,
         error: function (request, status, error) {
             if (_error) {
-                _error(error);
+                _error(catchup.plain(error));
             } else {
                 handleAjaxError(request, status, error);
             }
@@ -32,15 +32,20 @@ catchup.call = function (_data, _success, _error, _ajaxOptions) {
         success: function (data) {
             if (data.state != 'ok') {
                 if (_error) {
-                    _error(data.result);
+                    _error(catchup.plain(data.result));
                 } else {
-                    $('#div_catchupAlert').empty().append('<div class="alert alert-danger">' + $('<div>').text(data.result).html() + '</div>');
+                    $('#div_catchupAlert').empty().append('<div class="alert alert-danger">' + $('<div>').text(catchup.plain(data.result)).html() + '</div>');
                 }
                 return;
             }
             _success(data.result);
         }
     }, _ajaxOptions || {}));
+};
+
+/* Jeedom wraps the message of an ajax error in <span id="span_errorMessage">…</span>: only the text is shown */
+catchup.plain = function (_message) {
+    return $('<div>').html(_message === null || _message === undefined ? '' : String(_message)).text();
 };
 
 catchup.esc = function (_text) {
