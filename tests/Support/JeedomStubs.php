@@ -150,6 +150,14 @@ class cmd {
 	/** Commands the tests make findable by cmd::byString(), keyed by the string given to it. */
 	public static $byString = array();
 
+	public static function all() {
+		return array_values(self::$byString);
+	}
+
+	public function getHumanName($_tag = false, $_prettify = false) {
+		return $this->name;
+	}
+
 	public static function byString($_string) {
 		// like the core: an unknown command is an exception, not null
 		if (!isset(self::$byString[$_string])) {

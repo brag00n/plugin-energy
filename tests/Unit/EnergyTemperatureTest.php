@@ -34,6 +34,18 @@ final class EnergyTemperatureTest extends EnergyTestCase {
 		$this->assertSame('error', log::$lines[0][1], 'the ignored setting is logged as an error');
 	}
 
+	public function testSpacesCollapsedByThePickerStillFindTheCommand(): void {
+		$cmd = new GraphCmdDouble('temperature');
+		$cmd->id = 872;
+		$cmd->name = '[Jardin][Sonde du Jardin  (XiaomiHome)][Température]';
+		// registered under its real name, with two spaces
+		cmd::$byString['#[Jardin][Sonde du Jardin  (XiaomiHome)][Température]#'] = $cmd;
+		new jeeObject(1, 'home');
+		config::$values['energy::outdoorTemperature'] = '#[Jardin][Sonde du Jardin (XiaomiHome)][Température]#';
+		energy::getGraph('2026-01-01 00:00:00', '2026-01-31', 1);
+		$this->assertSame(872, DB::$statements[0][1]['cmd_id']);
+	}
+
 	public function testTheCommandIsReadFromTheSettingOfTheEnergyType(): void {
 		$this->weather();
 		new jeeObject(1, 'home');

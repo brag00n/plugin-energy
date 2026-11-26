@@ -578,6 +578,25 @@ class energy extends eqLogic {
 	}
 
 	/**
+	 * Command of a setting written as #[Object][Equipment][Command]# or #id#. The command picker of the browser writes the
+	 * name with its spaces collapsed ("Sonde  (X)" becomes "Sonde (X)"), which cmd::byString() then no longer finds: on
+	 * failure, the names are compared again with every run of spaces reduced to one.
+	 */
+	private static function findCmdByHumanName($_setting) {
+		try {
+			return cmd::byString($_setting);
+		} catch (Exception $e) {
+			$wanted = preg_replace('/\s+/u', ' ', $_setting);
+			foreach (cmd::all() as $cmd) {
+				if (preg_replace('/\s+/u', ' ', '#' . $cmd->getHumanName() . '#') === $wanted) {
+					return $cmd;
+				}
+			}
+			throw $e;
+		}
+	}
+
+	/**
 	 * Daily mean of the outdoor temperature [[ms, degrees], ...] for the chart, or an empty array when no command is set.
 	 * A temperature is not an energy: it is only drawn, never added to the categories or the totals.
 	 */
@@ -589,7 +608,7 @@ class energy extends eqLogic {
 		// The temperature is an extra curve: whatever goes wrong here (command renamed or deleted, SQL error...) the panel
 		// must still display the consumption. The cause goes to the energy log, in error level.
 		try {
-			$cmd = cmd::byString($setting);
+			$cmd = self::findCmdByHumanName($setting);
 			if (!is_object($cmd)) {
 				log::add('energy', 'error', 'Outdoor temperature (' . $_energyType . ') ignored: command not found: ' . $setting);
 				return array();
