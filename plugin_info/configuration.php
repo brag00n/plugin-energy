@@ -225,7 +225,7 @@ if (!isConnect()) {
     <label class="col-sm-2 control-label">{{Sauvegardes}} <sup><i class="fas fa-question-circle tooltips" title="{{Une sauvegarde est créée avant chaque import : « Restaurer » remet l'historique des jours importés tel qu'il était. Rien n'est supprimé automatiquement.}}"></i></sup></label>
     <div class="col-sm-8">
         <table class="table table-condensed" id="table_catchupBackups">
-            <thead><tr><th>{{Date}}</th><th>{{Plage}}</th><th>{{Jours}}</th><th>{{Lignes}}</th><th></th><th></th></tr></thead>
+            <thead><tr><th>{{Date}}</th><th>{{Origine}}</th><th>{{Plage}}</th><th>{{Jours}}</th><th>{{Lignes}}</th><th></th><th></th></tr></thead>
             <tbody></tbody>
         </table>
     </div>

@@ -47,6 +47,30 @@ class energyRateCatchup {
 		return $days;
 	}
 
+	/** The tariffs of a day, as shown in the list of the backups: {from, to, rateHp, rateHc, rate, subscriptionDaily, variable}. */
+	public static function tariffSummary($_date) {
+		$tariff = energyRates::forDate($_date);
+		$period = energyRates::periodFor($_date);
+		return array(
+			'from' => $period === null ? '' : $period['from'],
+			'to' => $period === null ? '' : (isset($period['to']) ? $period['to'] : ''),
+			'variable' => $tariff['variable'],
+			'rateHp' => $tariff['rateHp'],
+			'rateHc' => $tariff['rateHc'],
+			'rate' => $tariff['rate'],
+			'subscriptionDaily' => $tariff['subscriptionDaily'],
+		);
+	}
+
+	/** The rows of a command over [from, to]: date => list of [table, datetime, value], as stored. */
+	private static function rowsByDay($_costId, $_from, $_to) {
+		$days = array();
+		foreach (energyCatchup::readRowsOf(array($_costId), $_from, $_to) as $row) {
+			$days[substr($row[2], 0, 10)][] = $row;
+		}
+		return $days;
+	}
+
 	/**
 	 * The plan: for each day with a total, the cost now stored, the new cost and the gap. Reads only.
 	 *
@@ -62,6 +86,8 @@ class energyRateCatchup {
 		$hp = self::valuesByDay($energy, 'consumptionHp', $from, $to);
 		$hc = self::valuesByDay($energy, 'consumptionHc', $from, $to);
 		$stored = self::valuesByDay($energy, 'cost', $from, $to);
+		$costId = energyCatchup::commands($energy)['cost'];
+		$rowsOfDay = self::rowsByDay($costId, $from, $to);
 		$share = null;
 		foreach ($total as $date => $kwh) {
 			if (isset($hp[$date]) && isset($hc[$date]) && $hp[$date] + $hc[$date] > 0) {
@@ -78,16 +104,21 @@ class energyRateCatchup {
 			$known = isset($hp[$date]) && isset($hc[$date]);
 			$new = energyCatchup::dayCost($total[$date], $known ? $hc[$date] : null, $known ? $hp[$date] : null, $share, $rates);
 			$current = isset($stored[$date]) ? $stored[$date] : 0;
-			$days[] = array('date' => $date, 'kwh' => $total[$date], 'hc' => $known ? $hc[$date] : null, 'hp' => $known ? $hp[$date] : null, 'current' => $current, 'new' => $new);
+			// a day measured by the plugin has several rows (a counter of the day, one per cycle): they are kept and scaled
+			$measured = isset($rowsOfDay[$date]) && count($rowsOfDay[$date]) > 1 && $current > 0;
+			$days[] = array('date' => $date, 'kwh' => $total[$date], 'hc' => $known ? $hc[$date] : null, 'hp' => $known ? $hp[$date] : null, 'current' => $current, 'new' => $new, 'origin' => $measured ? 'plugin' : 'import', 'points' => isset($rowsOfDay[$date]) ? count($rowsOfDay[$date]) : 0);
 			$sum['days']++;
 			$sum['withoutSplit'] += $known ? 0 : 1;
 			$sum['current'] += $current;
 			$sum['new'] += $new;
-			energyCatchup::say($lines, 'debug', '[rates] ' . $date . ' kwh=' . $total[$date] . ' hc=' . var_export($known ? $hc[$date] : null, true) . ' hp=' . var_export($known ? $hp[$date] : null, true) . ' cost ' . round($current, 4) . ' => ' . round($new, 4));
+			energyCatchup::say($lines, 'debug', '[rates] ' . $date . ' ' . ($measured ? 'measured by the plugin, ' . count($rowsOfDay[$date]) . ' points scaled' : 'one point') . ' kwh=' . $total[$date] . ' hc=' . var_export($known ? $hc[$date] : null, true) . ' hp=' . var_export($known ? $hp[$date] : null, true) . ' cost ' . round($current, 4) . ' => ' . round($new, 4));
 		}
 		if ($sum['days'] == 0) {
 			throw new Exception(__('Aucun jour avec une consommation sur cette plage : rien à recalculer.', __FILE__));
 		}
+		$sum['measured'] = count(array_filter($days, function ($d) {
+			return $d['origin'] == 'plugin';
+		}));
 		$sum['current'] = round($sum['current'], 2);
 		$sum['new'] = round($sum['new'], 2);
 		$sum['gap'] = round($sum['new'] - $sum['current'], 2);
@@ -95,9 +126,9 @@ class energyRateCatchup {
 		$sum['from'] = $from;
 		$sum['to'] = $to;
 		energyCatchup::say($lines, 'info', '[rates] preview done: ' . $sum['days'] . ' day(s), cost ' . $sum['current'] . ' => ' . $sum['new'] . ' (' . $sum['gap'] . '), ' . $sum['withoutSplit'] . ' day(s) without HC/HP');
-		$text = array('PRÉVISUALISATION DU RECALCUL DES COÛTS', 'Plage : ' . $from . ' → ' . $to . ' (' . $sum['days'] . ' jours)', 'Tarifs du premier jour : ' . json_encode($tariff), 'Coût actuel ' . $sum['current'] . ' → nouveau ' . $sum['new'] . ' (écart ' . $sum['gap'] . ', ' . ($sum['gapPercent'] === null ? '-' : $sum['gapPercent'] . ' %') . ')', 'Jours sans HC/HP : ' . $sum['withoutSplit'], '', 'JOURS (date | kWh | HC | HP | coût actuel | nouveau coût)');
+		$text = array('PRÉVISUALISATION DU RECALCUL DES COÛTS', 'Plage : ' . $from . ' → ' . $to . ' (' . $sum['days'] . ' jours)', 'Tarifs du premier jour : ' . json_encode($tariff), 'Coût actuel ' . $sum['current'] . ' → nouveau ' . $sum['new'] . ' (écart ' . $sum['gap'] . ', ' . ($sum['gapPercent'] === null ? '-' : $sum['gapPercent'] . ' %') . ')', 'Jours sans HC/HP : ' . $sum['withoutSplit'], 'Jours mesurés par le plugin (points du jour conservés et mis à l\'échelle) : ' . $sum['measured'] . ', jours importés (un point) : ' . ($sum['days'] - $sum['measured']), '', 'JOURS (date | kWh | HC | HP | coût actuel | nouveau coût | origine | points)');
 		foreach ($days as $d) {
-			$text[] = $d['date'] . ' | ' . $d['kwh'] . ' | ' . ($d['hc'] === null ? '-' : $d['hc']) . ' | ' . ($d['hp'] === null ? '-' : $d['hp']) . ' | ' . round($d['current'], 6) . ' | ' . round($d['new'], 6);
+			$text[] = $d['date'] . ' | ' . $d['kwh'] . ' | ' . ($d['hc'] === null ? '-' : $d['hc']) . ' | ' . ($d['hp'] === null ? '-' : $d['hp']) . ' | ' . round($d['current'], 6) . ' | ' . round($d['new'], 6) . ' | ' . $d['origin'] . ' | ' . $d['points'];
 		}
 		$text[] = '';
 		$text[] = 'JOURNAL';
@@ -158,9 +189,37 @@ class energyRateCatchup {
 		$finished = !isset($names[$index + 1]);
 		if ($finished) {
 			energyCatchup::say($state['log'], 'info', '[rates] cost recomputed: ' . count($state['plan']) . ' day(s), backup ' . $state['backup']);
+			self::journal($state);
 			energyCatchup::discard($_importId);
 		}
 		return array('id' => $_importId, 'step' => $_step, 'label' => self::STEPS[$_step], 'ok' => true, 'done' => $finished, 'next' => $finished ? null : $names[$index + 1], 'message' => $message, 'text' => implode("\n", $state['log']), 'backup' => isset($state['backup']) ? $state['backup'] : null);
+	}
+
+	/** One line per recalculation: when, which days, which tariffs, which backup. Never purged. */
+	public static function journal($_state) {
+		$tariff = self::tariffSummary($_state['from']);
+		$line = array(
+			'date' => date('Y-m-d H:i:s'),
+			'from' => $_state['from'],
+			'to' => $_state['to'],
+			'days' => count($_state['plan']),
+			'tariff' => $tariff,
+			'backup' => isset($_state['backup']) ? $_state['backup'] : '',
+		);
+		@file_put_contents(energyCatchup::dir('backup') . '/rates_journal.jsonl', json_encode($line) . "\n", FILE_APPEND);
+		return $line;
+	}
+
+	/** The journal of the recalculations, the oldest first. */
+	public static function journalLines() {
+		$lines = array();
+		foreach (explode("\n", strval(@file_get_contents(energyCatchup::dir('backup') . '/rates_journal.jsonl'))) as $raw) {
+			$data = json_decode($raw, true);
+			if (is_array($data)) {
+				$lines[] = $data;
+			}
+		}
+		return $lines;
 	}
 
 	private static function stepCheck(&$_state, &$_lines) {
@@ -185,6 +244,9 @@ class energyRateCatchup {
 			'reliableOld' => '',
 			'reliableChanged' => false,
 			'writtenDays' => array_column($_state['plan'], 'date'),
+			// what made the new costs: the tariffs of the period, and the whole table of the periods as it was at that moment
+			'tariff' => self::tariffSummary($_state['from']),
+			'periods' => energyRates::periods(),
 			'rows' => $rows,
 		);
 		$path = energyCatchup::backupPath($name);
@@ -207,14 +269,28 @@ class energyRateCatchup {
 		$energy = energyCatchup::target($_state['energy_id']);
 		$costId = energyCatchup::commands($energy)['cost'];
 		$written = 0;
+		$scaled = 0;
 		foreach ($_state['plan'] as $day) {
-			// the old cost of the day is replaced: the rows of that day are erased, then the new value is written at noon
+			$rows = self::rowsByDay($costId, $day['date'], $day['date']);
+			$rows = isset($rows[$day['date']]) ? $rows[$day['date']] : array();
+			if ($day['origin'] == 'plugin' && count($rows) > 1 && $day['current'] > 0) {
+				// a day measured by the plugin: its points keep their date and their shape, scaled so that the last of the day
+				// (the maximum, which the panel reads) becomes the new cost
+				$ratio = $day['new'] / $day['current'];
+				foreach ($rows as $row) {
+					energyCatchup::insertRow($row[0], $row[1], $row[2], floatval($row[3]) * $ratio);
+					$scaled++;
+				}
+				$written++;
+				continue;
+			}
+			// an imported day: the old cost of the day is replaced by one value at noon
 			energyCatchup::deleteRowsOf(array($costId), $day['date'], $day['date']);
 			energyCatchup::insertRow('history', $costId, $day['date'] . ' 12:00:00', $day['new']);
 			$written++;
 		}
-		energyCatchup::say($_lines, 'debug', '[rates] cost: ' . $written . ' row(s) written');
-		return $written . ' jour(s)';
+		energyCatchup::say($_lines, 'debug', '[rates] cost: ' . $written . ' day(s) written, ' . $scaled . ' point(s) scaled');
+		return $written . ' jour(s)' . ($scaled > 0 ? ', ' . $scaled . ' point(s) mis à l\'échelle' : '');
 	}
 
 	private static function stepVerify(&$_state, &$_lines) {

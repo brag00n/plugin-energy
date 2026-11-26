@@ -471,21 +471,40 @@ catchup.loadBackups = function () {
     catchup.call({action: 'catchupInit'}, function (init) {
         var html = '';
         init.backups.forEach(function (b) {
-            html += '<tr><td>' + catchup.esc(b.created) + '</td><td>' + b.from + ' → ' + b.to + '</td><td>' + b.days + '</td><td>' + b.rows + '</td><td>' + (b.restored ? '{{restaurée}}' : '') + '</td>';
-            html += '<td><a class="btn btn-warning btn-xs bt_catchupRestore" data-name="' + catchup.esc(b.name) + '"><i class="fas fa-undo"></i> {{Restaurer}}</a> <a class="btn btn-danger btn-xs bt_catchupDelete" data-name="' + catchup.esc(b.name) + '"><i class="fas fa-trash"></i></a></td></tr>';
+            var origin = b.kind == 'rates' ? '{{MAJ tarifs}}' : '{{Import Enedis}}';
+            if (b.kind == 'rates' && b.tariff) {
+                // the tariffs that made these costs, so that a backup tells what it holds
+                origin += '<br><small class="text-muted">' + (b.tariff.variable ? 'HP ' + b.tariff.rateHp + ' / HC ' + b.tariff.rateHc : '{{tarif fixe}} ' + b.tariff.rate) + ' · {{abo}} ' + b.tariff.subscriptionDaily + (b.tariff.from ? ' · ' + b.tariff.from + ' → ' + (b.tariff.to || '…') : '') + '</small>';
+            }
+            html += '<tr><td>' + catchup.esc(b.created) + '</td><td>' + origin + '</td><td>' + b.from + ' → ' + b.to + '</td><td>' + b.days + '</td><td>' + b.rows + '</td><td>' + (b.restored ? '{{restaurée}}' : '') + '</td>';
+            html += '<td><a class="btn btn-warning btn-xs bt_catchupRestore" data-has-periods="' + (b.hasPeriods ? 1 : 0) + '" data-name="' + catchup.esc(b.name) + '"><i class="fas fa-undo"></i> {{Restaurer}}</a> <a class="btn btn-danger btn-xs bt_catchupDelete" data-name="' + catchup.esc(b.name) + '"><i class="fas fa-trash"></i></a></td></tr>';
         });
-        $('#table_catchupBackups tbody').html(html || '<tr><td colspan="6" class="text-muted">{{Aucune sauvegarde.}}</td></tr>');
+        $('#table_catchupBackups tbody').html(html || '<tr><td colspan="7" class="text-muted">{{Aucune sauvegarde.}}</td></tr>');
     }, function () {});
 };
 
 $(document).on('click', '.bt_catchupRestore', function () {
     var name = $(this).attr('data-name');
-    bootbox.confirm('{{Restaurer l\'historique tel qu\'il était avant cet import ? Les jours écrits par l\'import seront effacés.}}', function (ok) {
-        if (ok) {
-            catchup.call({action: 'catchupRestore', name: name}, function (text) {
-                bootbox.alert('<pre style="max-height:300px;overflow:auto">' + catchup.esc(text) + '</pre>');
-                catchup.loadBackups();
-            }, function (error) { bootbox.alert(catchup.esc(error)); });
+    var hasPeriods = $(this).attr('data-has-periods') == 1;
+    var restore = function (withPeriods) {
+        catchup.call({action: 'catchupRestore', name: name, with_periods: withPeriods ? 1 : 0}, function (text) {
+            bootbox.alert('<pre style="max-height:300px;overflow:auto">' + catchup.esc(text) + '</pre>', function () { window.location.reload(); });
+            catchup.loadBackups();
+        }, function (error) { bootbox.alert(catchup.esc(error)); });
+    };
+    if (!hasPeriods) {
+        bootbox.confirm('{{Restaurer l\'historique tel qu\'il était avant cet import ? Les jours écrits par l\'import seront effacés.}}', function (ok) {
+            if (ok) { restore(false); }
+        });
+        return;
+    }
+    // a recalculation of the costs: the costs come back, and the table of the tariff periods can come back with them
+    bootbox.dialog({
+        message: '{{Restaurer les coûts tels qu\'ils étaient avant ce recalcul ? Vous pouvez aussi remettre le tableau des plages de tarification tel qu\'il était à ce moment-là.}}',
+        buttons: {
+            cancel: {label: '{{Annuler}}', className: 'btn-default'},
+            costs: {label: '{{Les coûts seulement}}', className: 'btn-warning', callback: function () { restore(false); }},
+            both: {label: '{{Les coûts et les plages}}', className: 'btn-danger', callback: function () { restore(true); }}
         }
     });
 });

@@ -60,7 +60,8 @@
         "Ajouter une plage": "Ajouter une plage",
         "Enregistrer les plages": "Enregistrer les plages",
         "Enregistrez les plages avant de recalculer les coûts : le calcul lit les plages enregistrées.": "Enregistrez les plages avant de recalculer les coûts : le calcul lit les plages enregistrées.",
-        "Plages de tarification et recalcul des coûts d'une plage (lignes [rates], jour par jour).": "Plages de tarification et recalcul des coûts d'une plage (lignes [rates], jour par jour)."
+        "Plages de tarification et recalcul des coûts d'une plage (lignes [rates], jour par jour).": "Plages de tarification et recalcul des coûts d'une plage (lignes [rates], jour par jour).",
+        "Origine": "Origine"
     },
     "plugins\/energy\/desktop\/php\/panel.php": {
         "401 - Accès non autorisé": "401 - Несанкционированный доступ",
@@ -239,7 +240,14 @@
         "Restaurer": "Restaurer",
         "Aucune sauvegarde.": "Aucune sauvegarde.",
         "Restaurer l\\'historique tel qu\\'il était avant cet import ? Les jours écrits par l\\'import seront effacés.": "Restaurer l\\'historique tel qu\\'il était avant cet import ? Les jours écrits par l\\'import seront effacés.",
-        "Supprimer cette sauvegarde ? Elle ne pourra plus être restaurée.": "Supprimer cette sauvegarde ? Elle ne pourra plus être restaurée."
+        "Supprimer cette sauvegarde ? Elle ne pourra plus être restaurée.": "Supprimer cette sauvegarde ? Elle ne pourra plus être restaurée.",
+        "MAJ tarifs": "MAJ tarifs",
+        "Import Enedis": "Import Enedis",
+        "tarif fixe": "tarif fixe",
+        "abo": "abo",
+        "Restaurer les coûts tels qu'ils étaient avant ce recalcul ? Vous pouvez aussi remettre le tableau des plages de tarification tel qu'il était à ce moment-là.": "Restaurer les coûts tels qu'ils étaient avant ce recalcul ? Vous pouvez aussi remettre le tableau des plages de tarification tel qu'il était à ce moment-là.",
+        "Les coûts seulement": "Les coûts seulement",
+        "Les coûts et les plages": "Les coûts et les plages"
     },
     "plugins\/energy\/core\/class\/energyCatchup.class.php": {
         "L\\'extension PHP zip est absente : impossible de lire le fichier xlsx.": "L\\'extension PHP zip est absente : impossible de lire le fichier xlsx.",
@@ -310,5 +318,6 @@
         "Étape hors ordre : ": "Étape hors ordre : ",
         "La sauvegarde n\\'a pas pu être écrite : le recalcul est annulé, rien n\\'a été modifié.": "La sauvegarde n\\'a pas pu être écrite : le recalcul est annulé, rien n\\'a été modifié.",
         "La sauvegarde relue ne correspond pas : le recalcul est annulé, rien n\\'a été modifié.": "La sauvegarde relue ne correspond pas : le recalcul est annulé, rien n\\'a été modifié."
-    }
+    },
+    "plugins\/energy\/core\/class\/energyRateCatchup.class.php": {}
 }

@@ -370,23 +370,185 @@ final class EnergyRatesTest extends EnergyTestCase {
 		$this->assertEquals(5.0, $restored['2026-01-12']);
 	}
 
-	public function testAnOldCostOfTheDayAtAnotherTimeDoesNotSurvive(): void {
-		// the history keeps one row per datetime: a cost stored by the cron at 23:45 must be erased, not left next to the new one
+	private function runAllSteps(energy $energy, string $from): array {
+		$id = '';
+		$next = 'check';
+		$results = array();
+		while ($next !== null) {
+			$result = energyRateCatchup::runStep($id, $next, $energy->getId(), $from);
+			$results[] = $result;
+			$id = $result['id'];
+			$next = ($result['done'] || !$result['ok']) ? null : $result['next'];
+		}
+		return $results;
+	}
+
+	private function costRows(energy $energy, string $date): array {
+		$id = $energy->getCmd(null, 'cost')->getId();
+		$rows = array();
+		foreach ($this->store as $table => $list) {
+			foreach ($list as $row) {
+				if ($row[0] === $id && strpos($row[1], $date) === 0) {
+					$rows[$row[1]] = floatval($row[2]);
+				}
+			}
+		}
+		ksort($rows);
+		return $rows;
+	}
+
+	public function testADayMeasuredByThePluginKeepsItsPointsScaledToTheNewCost(): void {
+		// the plugin writes a counter of the day, one point per cycle: the shape and the dates are kept, the last point is the new cost
+		$this->periods();
+		$energy = $this->total();
+		$this->put($energy, 'consumptionTotal', '2026-01-10', 100.0);
+		$this->put($energy, 'consumptionHc', '2026-01-10', 30.0);
+		$this->put($energy, 'consumptionHp', '2026-01-10', 70.0);
+		$id = $energy->getCmd(null, 'cost')->getId();
+		foreach (array('00:15:00' => 2.0, '08:00:00' => 8.0, '23:45:00' => 20.0) as $time => $value) {
+			$this->store['history'][] = array($id, '2026-01-10 ' . $time, strval($value));
+		}
+		$expected = 30 * 0.1635 + 70 * 0.2081;
+		$results = $this->runAllSteps($energy, '2026-01-01');
+		$this->assertTrue(end($results)['ok'], end($results)['message']);
+		$rows = $this->costRows($energy, '2026-01-10');
+		$this->assertCount(3, $rows, 'the three points of the day are kept');
+		$this->assertEqualsWithDelta($expected, $rows['2026-01-10 23:45:00'], 0.0001, 'the last point is the new cost');
+		$this->assertEqualsWithDelta($expected * 2 / 20, $rows['2026-01-10 00:15:00'], 0.0001, 'the shape is kept');
+		$this->assertEqualsWithDelta($expected * 8 / 20, $rows['2026-01-10 08:00:00'], 0.0001);
+		$this->assertArrayNotHasKey('2026-01-10 12:00:00', $rows, 'no extra point at noon');
+	}
+
+	public function testAnImportedDayWithOneRowGetsOnePointAtNoon(): void {
 		$this->periods();
 		$energy = $this->total();
 		$this->seed($energy);
-		$this->store['history'][] = array($energy->getCmd(null, 'cost')->getId(), '2026-01-10 23:45:00', '123.0');
-		$id = '';
-		$next = 'check';
-		while ($next !== null) {
-			$result = energyRateCatchup::runStep($id, $next, $energy->getId(), '2026-01-01');
-			$id = $result['id'];
-			$next = $result['done'] ? null : $result['next'];
+		$results = $this->runAllSteps($energy, '2026-01-01');
+		$this->assertTrue(end($results)['ok'], end($results)['message']);
+		$rows = $this->costRows($energy, '2026-01-10');
+		$this->assertSame(array('2026-01-10 12:00:00'), array_keys($rows));
+	}
+
+	public function testThePreviewTellsWhichDaysAreMeasuredByThePlugin(): void {
+		$this->periods();
+		$energy = $this->total();
+		$this->seed($energy);
+		$this->put($energy, 'consumptionTotal', '2026-01-12', 40.0);
+		$this->put($energy, 'consumptionHc', '2026-01-12', 10.0);
+		$this->put($energy, 'consumptionHp', '2026-01-12', 30.0);
+		$id = $energy->getCmd(null, 'cost')->getId();
+		$this->store['history'][] = array($id, '2026-01-12 06:00:00', '3.0');
+		$this->store['history'][] = array($id, '2026-01-12 23:45:00', '9.0');
+		$preview = energyRateCatchup::preview($energy->getId(), '2026-01-01');
+		$byDate = array_column($preview['days'], null, 'date');
+		$this->assertSame('import', $byDate['2026-01-10']['origin']);
+		$this->assertSame('plugin', $byDate['2026-01-12']['origin']);
+		$this->assertSame(2, $byDate['2026-01-12']['points']);
+		$this->assertSame(1, $preview['summary']['measured']);
+		$this->assertStringContainsString('mesurés par le plugin', $preview['text']);
+	}
+
+	public function testTheBackupListHasTheOldestFirstAndTheOrigin(): void {
+		$this->periods();
+		$energy = $this->total();
+		$this->seed($energy);
+		$this->runAllSteps($energy, '2026-01-01');
+		$dir = energyCatchup::dir('backup');
+		$old = json_decode(file_get_contents(glob($dir . '/catchup_*.json')[0]), true);
+		$old['created'] = '2020-01-01 00:00:00';
+		$old['kind'] = 'import';
+		file_put_contents($dir . '/catchup_20200101_000000_aaaaaa.json', json_encode($old));
+		$list = energyCatchup::listBackups();
+		$this->assertCount(2, $list);
+		$this->assertSame('import', $list[0]['kind'], 'the oldest first');
+		$this->assertSame('rates', $list[1]['kind'], 'the most recent last');
+	}
+
+	public function testTheBackupKeepsTheTariffsAndThePeriodsThatMadeTheNewCosts(): void {
+		$this->periods();
+		$energy = $this->total();
+		$this->seed($energy);
+		$this->runAllSteps($energy, '2026-01-01');
+		$list = energyCatchup::listBackups();
+		$this->assertCount(1, $list);
+		$this->assertSame(0.2081, $list[0]['tariff']['rateHp']);
+		$this->assertSame(0.1635, $list[0]['tariff']['rateHc']);
+		$this->assertSame('2026-01-01', $list[0]['tariff']['from']);
+		$this->assertSame('2026-02-01', $list[0]['tariff']['to']);
+		$this->assertTrue($list[0]['hasPeriods']);
+		$data = json_decode(file_get_contents(energyCatchup::dir('backup') . '/' . $list[0]['name']), true);
+		$this->assertCount(3, $data['periods'], 'the whole table of the periods is kept');
+	}
+
+	public function testRestoringCanPutTheTariffPeriodsBackAsTheyWere(): void {
+		$this->periods();
+		$energy = $this->total();
+		$this->seed($energy);
+		$this->runAllSteps($energy, '2026-01-01');
+		// the table is changed after the recalculation
+		energyRates::save(array(array('from' => '2026-01-01', 'to' => '', 'rateHp' => '0.5')));
+		$this->assertCount(1, energyRates::periods());
+		$name = energyCatchup::listBackups()[0]['name'];
+		energyCatchup::restore($name, false);
+		$this->assertCount(1, energyRates::periods(), 'the periods stay as they are unless asked');
+		energyCatchup::restore($name, true);
+		$this->assertCount(3, energyRates::periods(), 'the table of the periods is back as it was');
+		$this->assertSame('0,2065', energyRates::periods()[1]['rateHp']);
+	}
+
+	public function testEachRecalculationLeavesALineInTheJournal(): void {
+		$this->periods();
+		$energy = $this->total();
+		$this->seed($energy);
+		foreach (array('2026-03-10', '2026-03-11') as $date) {
+			$this->put($energy, 'consumptionTotal', $date, 40.0);
+			$this->put($energy, 'consumptionHc', $date, 10.0);
+			$this->put($energy, 'consumptionHp', $date, 30.0);
 		}
-		$rows = array_filter($this->store['history'], function ($row) use ($energy) {
-			return $row[0] === $energy->getCmd(null, 'cost')->getId() && strpos($row[1], '2026-01-10') === 0;
-		});
-		$this->assertCount(1, $rows, 'one cost row for the day');
+		$this->runAllSteps($energy, '2026-01-01');
+		$this->runAllSteps($energy, '2026-02-01');
+		$lines = energyRateCatchup::journalLines();
+		$this->assertCount(2, $lines);
+		$this->assertSame('2026-01-01', $lines[0]['from']);
+		$this->assertSame(0.2065, $lines[1]['tariff']['rateHp']);
+		$this->assertNotSame('', $lines[0]['backup']);
+	}
+
+	public function testAnImportBackupHasNoTariffAndNoPeriods(): void {
+		$dir = energyCatchup::dir('backup');
+		file_put_contents($dir . '/catchup_20260101_000000_abcdef.json', json_encode(array('created' => '2026-01-01 00:00:00', 'from' => '2026-01-01', 'to' => '2026-01-02', 'writtenDays' => array(), 'rows' => array())));
+		$list = energyCatchup::listBackups();
+		$this->assertSame('import', $list[0]['kind']);
+		$this->assertNull($list[0]['tariff']);
+		$this->assertFalse($list[0]['hasPeriods']);
+	}
+
+	public function testRecalculatingTwiceGivesTheSameCostsAndTheSecondBackupHoldsTheFirstResult(): void {
+		$this->periods();
+		$energy = $this->total();
+		$this->seed($energy);
+		// a day measured by the plugin: three points, scaled the first time
+		$this->put($energy, 'consumptionTotal', '2026-01-12', 40.0);
+		$this->put($energy, 'consumptionHc', '2026-01-12', 10.0);
+		$this->put($energy, 'consumptionHp', '2026-01-12', 30.0);
+		$id = $energy->getCmd(null, 'cost')->getId();
+		foreach (array('01:00:00' => 1.0, '12:00:00' => 5.0, '23:45:00' => 10.0) as $time => $value) {
+			$this->store['history'][] = array($id, '2026-01-12 ' . $time, strval($value));
+		}
+		$this->runAllSteps($energy, '2026-01-01');
+		$firstImported = $this->costRows($energy, '2026-01-10');
+		$firstMeasured = $this->costRows($energy, '2026-01-12');
+		$this->runAllSteps($energy, '2026-01-01');
+		$this->assertEqualsWithDelta($firstImported, $this->costRows($energy, '2026-01-10'), 0.000001, 'an imported day gives the same cost');
+		$secondMeasured = $this->costRows($energy, '2026-01-12');
+		$this->assertSame(array_keys($firstMeasured), array_keys($secondMeasured), 'the points of the day are the same');
+		$this->assertEqualsWithDelta(max($firstMeasured), max($secondMeasured), 0.000001, 'the last point is still the new cost');
+		foreach ($firstMeasured as $time => $value) {
+			$this->assertEqualsWithDelta($value, $secondMeasured[$time], 0.000001, 'the shape does not drift');
+		}
+		$backups = energyCatchup::listBackups();
+		$this->assertCount(2, $backups, 'one backup per recalculation');
+		$this->assertCount(2, energyRateCatchup::journalLines());
 	}
 
 	public function testNothingIsWrittenWhenTheBackupCannotBeWritten(): void {

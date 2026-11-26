@@ -714,12 +714,15 @@ class energyCatchup {
 				'to' => $data['to'],
 				'days' => count($data['writtenDays']),
 				'kind' => isset($data['kind']) ? $data['kind'] : 'import',
+				'tariff' => isset($data['tariff']) ? $data['tariff'] : null,
+				'hasPeriods' => isset($data['periods']),
 				'rows' => count($data['rows']),
 				'restored' => !empty($data['restored']),
 			);
 		}
+		// the oldest first, the most recent last
 		usort($list, function ($a, $b) {
-			return strcmp($b['created'], $a['created']);
+			return strcmp($a['created'], $b['created']);
 		});
 		return $list;
 	}
@@ -743,7 +746,7 @@ class energyCatchup {
 	 * Puts the history of the commands back as it was in a backup: the days written are erased, the rows saved are
 	 * written again in the table they came from, and the setting "compteur fiable" gets its previous value.
 	 */
-	public static function restore($_name) {
+	public static function restore($_name, $_withPeriods = false) {
 		$lines = array();
 		$path = self::backupPath($_name);
 		$data = json_decode(strval(@file_get_contents($path)), true);
@@ -758,6 +761,11 @@ class energyCatchup {
 		if (isset($data['reliableChanged']) && $data['reliableChanged']) {
 			config::save('counterReliableSince', $data['reliableOld'], 'energy');
 			self::say($lines, 'info', 'setting counterReliableSince back to "' . $data['reliableOld'] . '"');
+		}
+		// a recalculation of the costs also memorizes the table of the tariff periods it was made with
+		if ($_withPeriods && isset($data['periods']) && is_array($data['periods'])) {
+			config::save('ratePeriods', json_encode($data['periods']), 'energy');
+			self::say($lines, 'info', 'tariff periods put back as they were: ' . count($data['periods']) . ' period(s)');
 		}
 		$data['restored'] = date('Y-m-d H:i:s');
 		file_put_contents($path, json_encode($data));

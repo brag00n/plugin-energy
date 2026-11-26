@@ -124,7 +124,7 @@ try {
 			ajax::success();
 		}
 		if (init('action') == 'catchupRestore') {
-			ajax::success(energyCatchup::restore(init('name')));
+			ajax::success(energyCatchup::restore(init('name'), init('with_periods') == 1));
 		}
 		/* Tariff periods and the cost catch-up of one of them (see energyRates and energyRateCatchup) */
 		if (init('action') == 'catchupRatePeriods') {

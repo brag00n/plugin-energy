@@ -60,7 +60,8 @@
         "Ajouter une plage": "Add a period",
         "Enregistrer les plages": "Save the periods",
         "Enregistrez les plages avant de recalculer les coûts : le calcul lit les plages enregistrées.": "Save the periods before recalculating the costs: the calculation reads the saved periods.",
-        "Plages de tarification et recalcul des coûts d'une plage (lignes [rates], jour par jour).": "Tariff periods and the cost recalculation of a period ([rates] lines, day by day)."
+        "Plages de tarification et recalcul des coûts d'une plage (lignes [rates], jour par jour).": "Tariff periods and the cost recalculation of a period ([rates] lines, day by day).",
+        "Origine": "Origin"
     },
     "plugins\/energy\/desktop\/php\/panel.php": {
         "401 - Accès non autorisé": "401 - Unauthorized access",
@@ -239,7 +240,14 @@
         "Restaurer": "Restore",
         "Aucune sauvegarde.": "No backup.",
         "Restaurer l\\'historique tel qu\\'il était avant cet import ? Les jours écrits par l\\'import seront effacés.": "Restaurer l\\'historique tel qu\\'il était avant cet import ? Les jours écrits par l\\'import seront effacés.",
-        "Supprimer cette sauvegarde ? Elle ne pourra plus être restaurée.": "Delete this backup? It can no longer be restored."
+        "Supprimer cette sauvegarde ? Elle ne pourra plus être restaurée.": "Delete this backup? It can no longer be restored.",
+        "MAJ tarifs": "Tariff update",
+        "Import Enedis": "Enedis import",
+        "tarif fixe": "fixed rate",
+        "abo": "subscr.",
+        "Restaurer les coûts tels qu'ils étaient avant ce recalcul ? Vous pouvez aussi remettre le tableau des plages de tarification tel qu'il était à ce moment-là.": "Restore the costs as they were before this recalculation? You can also put the table of the tariff periods back as it was at that moment.",
+        "Les coûts seulement": "The costs only",
+        "Les coûts et les plages": "The costs and the periods"
     },
     "plugins\/energy\/core\/class\/energyCatchup.class.php": {
         "L\\'extension PHP zip est absente : impossible de lire le fichier xlsx.": "L\\'extension PHP zip est absente : impossible de lire le fichier xlsx.",
@@ -310,5 +318,6 @@
         "Étape hors ordre : ": "Step out of order: ",
         "La sauvegarde n\\'a pas pu être écrite : le recalcul est annulé, rien n\\'a été modifié.": "The backup could not be written: the recalculation is cancelled, nothing was modified.",
         "La sauvegarde relue ne correspond pas : le recalcul est annulé, rien n\\'a été modifié.": "The backup read back does not match: the recalculation is cancelled, nothing was modified."
-    }
+    },
+    "plugins\/energy\/core\/class\/energyRateCatchup.class.php": {}
 }
