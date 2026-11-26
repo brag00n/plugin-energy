@@ -15,6 +15,19 @@ final class EnergyLifecycleTest extends EnergyTestCase {
 		$this->assertCount(count(self::ELECTRICITY_CMDS), $energy->getCmd('info'));
 	}
 
+	public function testTotalCounterGetsTheCatchupFlagOthersDoNot(): void {
+		$plain = $this->makeEnergy('electricity');
+		$this->assertNull($plain->getCmd(null, 'consumptionCatchup'));
+		eqLogic::reset();
+		$total = $this->makeEnergy('electricity', array(), array('totalCounter' => 1));
+		$cmd = $total->getCmd(null, 'consumptionCatchup');
+		$this->assertNotNull($cmd);
+		$this->assertSame('binary', $cmd->getSubType());
+		$this->assertEquals(1, $cmd->isHistorized);
+		$total->save();
+		$this->assertCount(count(self::ELECTRICITY_CMDS) + 1, $total->getCmd('info'), 'saving twice must not duplicate it');
+	}
+
 	public function testWaterAndGasOnlyHaveCostAndTotal(): void {
 		foreach (array('water', 'gas') as $type) {
 			eqLogic::reset();

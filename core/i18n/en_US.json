@@ -90,7 +90,8 @@
         "Coût": "Cost",
         "Consommation total": "Total consumption",
         "Consommation totale": "Total consumption",
-        "Température ext.": "Outdoor temp."
+        "Température ext.": "Outdoor temp.",
+        "Rattrapé (Enedis \/ EDF)": "Caught up (Enedis \/ EDF)"
     },
     "plugins\/energy\/desktop\/js\/energy.js": {
         "Êtes-vous sûr de vouloir Supprimer l\\'historique de cet équipement ?": "Are you sure you want to delete the history of this equipment?",
@@ -141,7 +142,8 @@
         "Consommation Electromenager": "Household appliance consumption",
         "Consommation Chauffage": "Heating consumption",
         "Consommation HP": "HP consumption",
-        "Consommation HC": "HC consumption"
+        "Consommation HC": "HC consumption",
+        "Donnée rattrapée": "Caught-up data"
     },
     "info.json": {
         "Plugin pour gérer sa consommation énergétique": "Plugin to manage your energy consumption"

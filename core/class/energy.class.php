@@ -643,6 +643,7 @@ class energy extends eqLogic {
 			'consumptionUnite' => 'kWh',
 			'power' => array(),
 			'temperature' => array(),
+			'catchupDays' => array(),
 		);
 		if ($_energyType == 'water') {
 			$return['consumptionUnite'] = 'L';
@@ -819,6 +820,16 @@ class energy extends eqLogic {
 						}
 						$counterConsumptionSum += floatval($value[1]);
 					}
+				}
+				// days written by the catch-up from Enedis: the panel draws them apart from the days the plugin measured
+				$cmd = $energy->getCmd(null, 'consumptionCatchup');
+				if (is_object($cmd)) {
+					foreach ((array) $cmd->getHistoryEnergy($_startTime, $_endTime) as $value) {
+						if (is_numeric($value[1]) && $value[1] >= 1) {
+							$return['catchupDays'][] = floatval(strtotime($value[0] . ' UTC')) * 1000;
+						}
+					}
+					sort($return['catchupDays']);
 				}
 				$cmd = $energy->getCmd(null, 'cost');
 				if (is_object($cmd)) {
@@ -1144,6 +1155,23 @@ class energy extends eqLogic {
 				$cmd->setSubType('numeric');
 				$cmd->setUnite($unite);
 				$cmd->setIsVisible($this->getConfiguration($categoryInfo[1], 0));
+				$cmd->save();
+			}
+
+			// Flag of the days written by the catch-up from Enedis (see energyCatchup): 1 on such a day, 0 for a day the plugin measured
+			if ($this->getConfiguration('totalCounter') == 1) {
+				$cmd = $this->getCmd(null, 'consumptionCatchup');
+				if (!is_object($cmd)) {
+					$cmd = new energyCmd();
+					$cmd->setLogicalId('consumptionCatchup');
+					$cmd->setConfiguration('historizeMode', 'max');
+					$cmd->setIsHistorized(1);
+					$cmd->setIsVisible(0);
+				}
+				$cmd->setName(__('Donnée rattrapée', __FILE__));
+				$cmd->setEqLogic_id($this->getId());
+				$cmd->setType('info');
+				$cmd->setSubType('binary');
 				$cmd->save();
 			}
 

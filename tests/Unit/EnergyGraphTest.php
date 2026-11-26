@@ -44,6 +44,24 @@ final class EnergyGraphTest extends EnergyTestCase {
 		$this->assertArrayHasKey('home', $result['object']);
 	}
 
+	public function testCatchupDaysComeFromTheFlagOfTheTotalCounter(): void {
+		$object = new jeeObject(1, 'home');
+		$total = $this->makeEnergy('electricity', array(), array('totalCounter' => 1));
+		$this->withCommands($total, array(
+			new GraphCmdDouble('consumptionTotal', array(array('2026-01-01', 90), array('2026-01-02', 80))),
+			new GraphCmdDouble('consumptionCatchup', array(array('2026-01-01', 1), array('2026-01-02', 0))),
+		));
+		$this->placeIn($object, $total);
+		$result = energy::getGraph('2026-01-01 00:00:00', '2026-01-31', 1);
+		$this->assertSame(array($this->ms('2026-01-01')), $result['catchupDays']);
+	}
+
+	public function testNoCatchupDaysWithoutTheFlag(): void {
+		new jeeObject(1, 'home');
+		$result = energy::getGraph('2026-01-01 00:00:00', '2026-01-31', 1);
+		$this->assertSame(array(), $result['catchupDays']);
+	}
+
 	public function testWaterUsesLitres(): void {
 		new jeeObject(1, 'home');
 		$result = energy::getGraph('2026-01-01 00:00:00', '2026-01-31', 1, 'water');

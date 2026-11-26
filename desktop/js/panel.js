@@ -191,7 +191,7 @@ function getDatas(_object_id, _dateStart, _dateEnd) {
                 }
             }
             addTemperatureSeries(series, data.result.datas, groupBy, true);
-            drawSimpleGraph('div_graphCost',series);
+            drawSimpleGraph('div_graphCost',series,addCatchupBands(series, data.result.datas));
             
             
              if(energyType != 'electricity'){
@@ -214,7 +214,7 @@ function getDatas(_object_id, _dateStart, _dateEnd) {
                 });
                }
                addTemperatureSeries(series, data.result.datas, groupBy);
-               drawSimpleGraph('div_graphDetailConsumption',series);
+               drawSimpleGraph('div_graphDetailConsumption',series,addCatchupBands(series, data.result.datas));
                return;
            }
 
@@ -289,7 +289,7 @@ function getDatas(_object_id, _dateStart, _dateEnd) {
         }
     }
     addTemperatureSeries(series, data.result.datas, groupBy);
-    drawSimpleGraph('div_graphDetailConsumptionByCategorie',series);
+    drawSimpleGraph('div_graphDetailConsumptionByCategorie',series,addCatchupBands(series, data.result.datas));
 
 
     var series = []
@@ -333,7 +333,7 @@ function getDatas(_object_id, _dateStart, _dateEnd) {
     }
 }
 addTemperatureSeries(series, data.result.datas, groupBy);
-drawSimpleGraph('div_graphDetailConsumptionByObject',series);
+drawSimpleGraph('div_graphDetailConsumptionByObject',series,addCatchupBands(series, data.result.datas));
 
 }
 });
@@ -368,6 +368,24 @@ function totalConsumptionSeries(_datas, _base) {
 
 // The outdoor temperature (set in the plugin configuration) is a line on a second axis, on the right: it is not an
 // energy and is never stacked with the consumption. Without a command the payload has no point and nothing is added.
+// Days written by the catch-up from Enedis (flag command of the total counter): a band behind the bars and a legend entry
+// (an empty series, plot bands have no legend of their own). Nothing is added when no day was caught up.
+function addCatchupBands(_series, _datas) {
+    var days = _datas.catchupDays;
+    if (!$.isArray(days) || days.length == 0) {
+        return [];
+    }
+    _series.push({
+        name: '{{Rattrapé (Enedis / EDF)}}',
+        type: 'column',
+        color: 'rgba(155, 89, 182, 0.25)',
+        data: []
+    });
+    return days.map(function (day) {
+        return {from: day, to: day + 86400000, color: 'rgba(155, 89, 182, 0.12)', zIndex: 0};
+    });
+}
+
 function addTemperatureSeries(_series, _datas, _groupBy, _withLabels) {
     if (!$.isArray(_datas.temperature) || _datas.temperature.length == 0) {
         return;
@@ -408,7 +426,7 @@ function addTemperatureSeries(_series, _datas, _groupBy, _withLabels) {
     _series.push(serie);
 }
 
-function drawSimpleGraph(_el, _serie) {
+function drawSimpleGraph(_el, _serie, _bands) {
     var legend = {
         enabled: true,
         borderColor: 'black',
@@ -489,6 +507,7 @@ function drawSimpleGraph(_el, _serie) {
         yAxis: yAxis,
         xAxis: {
             type: 'datetime',
+            plotBands: _bands || [],
             labels: {
                 // First letter of the weekday before the date (L 3. Nov.). Only for the labels that are a day: the
                 // hour labels (06:00) and the month labels are left as they are. The times are UTC shifted, hence getUTCDay.
