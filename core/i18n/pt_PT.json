@@ -31,7 +31,9 @@
         "Début heure creuse 2": "Partida 2 fora do pico",
         "Fin heure creuse 2": "Fim do pico 2",
         "Début heure creuse 3": "Partida fora do pico 3",
-        "Fin heure creuse 3": "Fim do pico 3"
+        "Fin heure creuse 3": "Fim do pico 3",
+        "Température extérieure": "Température extérieure",
+        "Commande d’information de la température extérieure (par exemple celle du plugin Météo). Elle est tracée en courbe (moyenne par jour) sur les graphiques de consommation, sans modifier les totaux. Vide = pas de courbe.": "Commande d’information de la température extérieure (par exemple celle du plugin Météo). Elle est tracée en courbe (moyenne par jour) sur les graphiques de consommation, sans modifier les totaux. Vide = pas de courbe."
     },
     "plugins\/energy\/desktop\/php\/panel.php": {
         "401 - Accès non autorisé": "401 - Acesso não autorizado",
@@ -87,7 +89,8 @@
     "plugins\/energy\/desktop\/js\/panel.js": {
         "Coût": "Custo",
         "Consommation total": "Consumo total",
-        "Consommation totale": "Consumo total"
+        "Consommation totale": "Consumo total",
+        "Température ext.": "Température ext."
     },
     "plugins\/energy\/desktop\/js\/energy.js": {
         "Êtes-vous sûr de vouloir Supprimer l\\'historique de cet équipement ?": "Tem certeza de que deseja excluir o histórico deste equipamento?",

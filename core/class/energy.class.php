@@ -566,6 +566,41 @@ class energy extends eqLogic {
 		return $points;
 	}
 
+	/** Setting that holds the outdoor temperature command of an energy type (set in the plugin configuration). */
+	private static function outdoorTemperatureKey($_energyType) {
+		if ($_energyType == 'water') {
+			return 'outdoorTemperatureWater';
+		}
+		if ($_energyType == 'gas') {
+			return 'outdoorTemperatureGas';
+		}
+		return 'outdoorTemperature';
+	}
+
+	/**
+	 * Daily mean of the outdoor temperature [[ms, degrees], ...] for the chart, or an empty array when no command is set.
+	 * A temperature is not an energy: it is only drawn, never added to the categories or the totals.
+	 */
+	private static function outdoorTemperature($_energyType, $_startTime, $_endTime) {
+		$setting = trim(strval(config::byKey(self::outdoorTemperatureKey($_energyType), 'energy', '')));
+		if ($setting == '') {
+			return array();
+		}
+		$cmd = cmd::byString($setting);
+		if (!is_object($cmd)) {
+			return array();
+		}
+		$points = array();
+		foreach (energyCmd::getHistoryDailyMean($cmd->getId(), $_startTime, $_endTime) as $value) {
+			if (!is_numeric($value[1])) {
+				continue;
+			}
+			$day = floatval(strtotime($value[0] . ' UTC')) * 1000;
+			$points[$day] = array($day, round(floatval($value[1]), 1));
+		}
+		return self::sortByDate($points);
+	}
+
 	public static function getGraph($_startTime, $_endTime, $_object_id, $_energyType = 'electricity') {
 		$return = array(
 			'category' => array('other' => array(), 'light' => array(), 'multimedia' => array(), 'heating' => array(), 'electrical' => array(), 'automatism' => array()),
@@ -580,6 +615,7 @@ class energy extends eqLogic {
 			'total' => array('power' => 0, 'consumption' => 0, 'cost' => 0),
 			'consumptionUnite' => 'kWh',
 			'power' => array(),
+			'temperature' => array(),
 		);
 		if ($_energyType == 'water') {
 			$return['consumptionUnite'] = 'L';
@@ -846,6 +882,7 @@ class energy extends eqLogic {
 			$return['cost'] = array_values($return['cost']);
 		}
 		$return['costDetail'] = self::buildCostDetail($return['cost'], $costSplit);
+		$return['temperature'] = self::outdoorTemperature($_energyType, $_startTime, $_endTime);
 		if ($_energyType == 'electricity') {
 			self::addSubscription($return, $_startTime, $_endTime);
 		}
@@ -1104,6 +1141,33 @@ class energyCmd extends cmd {
 			return round($_value, 2);
 		}
 		return $_value;
+	}
+
+	/**
+	 * Mean of a command by day (a temperature, unlike a counter, is averaged: no MAX, no 240 s shift). Static because the
+	 * command read is not an energy command (the weather one, for instance).
+	 */
+	public static function getHistoryDailyMean($_cmdId, $_startTime = null, $_endTime = null) {
+		$values = array('cmd_id' => $_cmdId);
+		$bounds = '';
+		if ($_startTime != null) {
+			$values['startTime'] = date('Y-m-d H:i:s', strtotime($_startTime));
+			$bounds .= ' AND `datetime`>=:startTime';
+		}
+		if ($_endTime != null) {
+			$values['endTime'] = date('Y-m-d H:i:s', strtotime('+1 day ' . $_endTime));
+			$bounds .= ' AND `datetime`<=:endTime';
+		}
+		$sql = 'SELECT date(`datetime`) as "0", AVG(CAST(value as DOUBLE)) as "1"
+			FROM (
+				SELECT `datetime`,value FROM history WHERE cmd_id=:cmd_id' . $bounds . '
+				UNION ALL
+				SELECT `datetime`,value FROM historyArch WHERE cmd_id=:cmd_id' . $bounds . '
+			) as dt
+			GROUP BY date(`datetime`)
+			ORDER BY date(`datetime`) ASC;';
+		$result = DB::Prepare($sql, $values, DB::FETCH_TYPE_ALL);
+		return is_array($result) ? $result : array();
 	}
 
 	public function getHistoryEnergy($_startTime = null, $_endTime = null) {

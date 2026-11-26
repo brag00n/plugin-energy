@@ -31,7 +31,9 @@
         "Début heure creuse 2": "Start außerhalb der Spitzenzeiten 2",
         "Fin heure creuse 2": "Ende der Nebensaison 2",
         "Début heure creuse 3": "Start außerhalb der Spitzenzeiten 3",
-        "Fin heure creuse 3": "Ende der Nebensaison 3"
+        "Fin heure creuse 3": "Ende der Nebensaison 3",
+        "Température extérieure": "Température extérieure",
+        "Commande d’information de la température extérieure (par exemple celle du plugin Météo). Elle est tracée en courbe (moyenne par jour) sur les graphiques de consommation, sans modifier les totaux. Vide = pas de courbe.": "Commande d’information de la température extérieure (par exemple celle du plugin Météo). Elle est tracée en courbe (moyenne par jour) sur les graphiques de consommation, sans modifier les totaux. Vide = pas de courbe."
     },
     "plugins\/energy\/desktop\/php\/panel.php": {
         "401 - Accès non autorisé": "401 - Nicht autorisierter Zugriff",
@@ -87,7 +89,8 @@
     "plugins\/energy\/desktop\/js\/panel.js": {
         "Coût": "Kosten",
         "Consommation total": "Gesamtverbrauch",
-        "Consommation totale": "Gesamtverbrauch"
+        "Consommation totale": "Gesamtverbrauch",
+        "Température ext.": "Température ext."
     },
     "plugins\/energy\/desktop\/js\/energy.js": {
         "Êtes-vous sûr de vouloir Supprimer l\\'historique de cet équipement ?": "Möchten Sie den Verlauf dieses Geräts wirklich löschen?",

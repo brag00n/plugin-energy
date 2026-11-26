@@ -50,6 +50,17 @@ if (!isConnect()) {
                   </div>
               </div>
           </div>
+          <div class="form-group">
+              <label class="col-sm-2 control-label">{{Température extérieure}} <sup><i class="fas fa-question-circle tooltips" title="{{Commande d’information de la température extérieure (par exemple celle du plugin Météo). Elle est tracée en courbe (moyenne par jour) sur les graphiques de consommation, sans modifier les totaux. Vide = pas de courbe.}}"></i></sup></label>
+              <div class="col-sm-4">
+                  <div class="input-group">
+                      <input class="form-control configKey input-sm" data-l1key="outdoorTemperatureWater"/>
+                      <span class="input-group-btn">
+                        <a class="btn btn-default btn-sm listCmdInfo btn-warning" data-input="outdoorTemperatureWater"><i class="fa fa-list-alt"></i></a>
+                      </span>
+                  </div>
+              </div>
+          </div>
       </div>
 
       <legend><i class="icon nature-fire14"></i> {{Gaz}}</legend>
@@ -71,6 +82,17 @@ if (!isConnect()) {
           </div>
       </div>
   </div>
+        <div class="form-group">
+            <label class="col-sm-2 control-label">{{Température extérieure}} <sup><i class="fas fa-question-circle tooltips" title="{{Commande d’information de la température extérieure (par exemple celle du plugin Météo). Elle est tracée en courbe (moyenne par jour) sur les graphiques de consommation, sans modifier les totaux. Vide = pas de courbe.}}"></i></sup></label>
+            <div class="col-sm-4">
+                <div class="input-group">
+                    <input class="form-control configKey input-sm" data-l1key="outdoorTemperatureGas"/>
+                    <span class="input-group-btn">
+                      <a class="btn btn-default btn-sm listCmdInfo btn-warning" data-input="outdoorTemperatureGas"><i class="fa fa-list-alt"></i></a>
+                    </span>
+                </div>
+            </div>
+        </div>
 </div>
 
 <legend><i class="fa fa-bolt"></i> {{Electricité}}</legend>
@@ -109,6 +131,17 @@ if (!isConnect()) {
             <input class="form-control configKey input-sm" data-l1key="counterReliableSince" placeholder="AAAA-MM-JJ"/>
         </div>
         <div class="col-sm-6"><span class="help-block">{{Avant cette date, le compteur total est ignoré et les jours gardent la somme des équipements (un compteur vidé ou installé en cours de journée ne contient qu'une partie de ce jour). Vide = pas de limite.}}</span></div>
+    </div>
+      <div class="form-group">
+        <label class="col-sm-2 control-label">{{Température extérieure}} <sup><i class="fas fa-question-circle tooltips" title="{{Commande d’information de la température extérieure (par exemple celle du plugin Météo). Elle est tracée en courbe (moyenne par jour) sur les graphiques de consommation, sans modifier les totaux. Vide = pas de courbe.}}"></i></sup></label>
+        <div class="col-sm-4">
+            <div class="input-group">
+                <input class="form-control configKey input-sm" data-l1key="outdoorTemperature"/>
+                <span class="input-group-btn">
+                  <a class="btn btn-default btn-sm listCmdInfo btn-warning" data-input="outdoorTemperature"><i class="fa fa-list-alt"></i></a>
+                </span>
+            </div>
+        </div>
     </div>
     <div class="rate fixed">
         <div class="form-group">

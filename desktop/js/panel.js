@@ -212,6 +212,7 @@ function getDatas(_object_id, _dateStart, _dateEnd) {
                     },
                 });
                }
+               addTemperatureSeries(series, data.result.datas, groupBy);
                drawSimpleGraph('div_graphDetailConsumption',series);
                return;
            }
@@ -286,6 +287,7 @@ function getDatas(_object_id, _dateStart, _dateEnd) {
             });
         }
     }
+    addTemperatureSeries(series, data.result.datas, groupBy);
     drawSimpleGraph('div_graphDetailConsumptionByCategorie',series);
 
 
@@ -329,6 +331,7 @@ function getDatas(_object_id, _dateStart, _dateEnd) {
         });
     }
 }
+addTemperatureSeries(series, data.result.datas, groupBy);
 drawSimpleGraph('div_graphDetailConsumptionByObject',series);
 
 }
@@ -362,6 +365,32 @@ function totalConsumptionSeries(_datas, _base) {
     return out;
 }
 
+// The outdoor temperature (set in the plugin configuration) is a line on a second axis, on the right: it is not an
+// energy and is never stacked with the consumption. Without a command the payload has no point and nothing is added.
+function addTemperatureSeries(_series, _datas, _groupBy) {
+    if (!$.isArray(_datas.temperature) || _datas.temperature.length == 0) {
+        return;
+    }
+    _series.push({
+        name: '{{Température ext.}} (°C)',
+        data: _datas.temperature,
+        type: 'line',
+        yAxis: 1,
+        color: '#e67e22',
+        zIndex: 5,
+        marker: {enabled: true, radius: 3},
+        dataGrouping: {
+            approximation: "average",
+            enabled: true,
+            forced: true,
+            units: [[_groupBy,[1]]]
+        },
+        tooltip: {
+            valueDecimals: 1
+        }
+    });
+}
+
 function drawSimpleGraph(_el, _serie) {
     var legend = {
         enabled: true,
@@ -369,6 +398,33 @@ function drawSimpleGraph(_el, _serie) {
         borderWidth: 2,
         shadow: true
     };
+
+    var yAxis = [{
+        format: '{value}',
+        showEmpty: false,
+        showLastLabel: true,
+        min: 0,
+        labels: {
+            align: 'right',
+            x: -5
+        }
+    }];
+    // second axis only when a temperature series is drawn: no floor at 0, a temperature goes below
+    var hasTemperature = _serie.some(function (serie) { return serie.yAxis === 1; });
+    if (hasTemperature) {
+        yAxis.push({
+            title: {text: '°C'},
+            opposite: true,
+            showEmpty: false,
+            showLastLabel: true,
+            gridLineWidth: 0,
+            labels: {
+                align: 'left',
+                x: 5,
+                format: '{value}°'
+            }
+        });
+    }
 
     new Highcharts.StockChart({
         chart: {
@@ -413,16 +469,7 @@ function drawSimpleGraph(_el, _serie) {
             pointFormat: '<span style="color:{series.color}">{series.name}</span>: <b>{point.y}</b><br/>',
             valueDecimals: 2,
         },
-        yAxis: {
-            format: '{value}',
-            showEmpty: false,
-            showLastLabel: true,
-            min: 0,
-            labels: {
-                align: 'right',
-                x: -5
-            }
-        },
+        yAxis: yAxis,
         xAxis: {
             type: 'datetime',
             labels: {

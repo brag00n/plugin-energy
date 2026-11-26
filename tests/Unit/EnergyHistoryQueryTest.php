@@ -71,4 +71,25 @@ final class EnergyHistoryQueryTest extends EnergyTestCase {
 		$this->cmd()->getHistoryEnergy();
 		$this->assertCount(1, DB::$statements);
 	}
+
+	public function testDailyMeanAveragesBothTablesWithoutTheCounterShift(): void {
+		energyCmd::getHistoryDailyMean(42, '2026-01-01 00:00:00', '2026-01-31');
+		[$sql, $values] = DB::$statements[0];
+		$this->assertSame(42, $values['cmd_id']);
+		$this->assertStringContainsString('AVG(CAST(value as DOUBLE))', $sql);
+		$this->assertStringNotContainsString('MAX(', $sql);
+		$this->assertStringNotContainsString('240 SECOND', $sql);
+		$this->assertStringContainsString('FROM history ', $sql);
+		$this->assertStringContainsString('FROM historyArch', $sql);
+		$this->assertStringContainsString('GROUP BY date(`datetime`)', $sql);
+		$this->assertStringContainsString('ORDER BY date(`datetime`)', $sql);
+		$this->assertSame(2, substr_count($sql, ':startTime'));
+	}
+
+	public function testDailyMeanBoundsAreOptional(): void {
+		energyCmd::getHistoryDailyMean(42);
+		[$sql, $values] = DB::$statements[0];
+		$this->assertArrayNotHasKey('startTime', $values);
+		$this->assertStringNotContainsString(':endTime', $sql);
+	}
 }

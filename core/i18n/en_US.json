@@ -31,7 +31,9 @@
         "Début heure creuse 2": "Off-peak start 2",
         "Fin heure creuse 2": "End of off-peak 2",
         "Début heure creuse 3": "Off-peak start 3",
-        "Fin heure creuse 3": "End of off-peak 3"
+        "Fin heure creuse 3": "End of off-peak 3",
+        "Température extérieure": "Outdoor temperature",
+        "Commande d’information de la température extérieure (par exemple celle du plugin Météo). Elle est tracée en courbe (moyenne par jour) sur les graphiques de consommation, sans modifier les totaux. Vide = pas de courbe.": "Information command of the outdoor temperature (for example the Weather plugin one). It is drawn as a curve (daily mean) on the consumption charts, without changing the totals. Empty = no curve."
     },
     "plugins\/energy\/desktop\/php\/panel.php": {
         "401 - Accès non autorisé": "401 - Unauthorized access",
@@ -87,7 +89,8 @@
     "plugins\/energy\/desktop\/js\/panel.js": {
         "Coût": "Cost",
         "Consommation total": "Total consumption",
-        "Consommation totale": "Total consumption"
+        "Consommation totale": "Total consumption",
+        "Température ext.": "Outdoor temp."
     },
     "plugins\/energy\/desktop\/js\/energy.js": {
         "Êtes-vous sûr de vouloir Supprimer l\\'historique de cet équipement ?": "Are you sure you want to delete the history of this equipment?",

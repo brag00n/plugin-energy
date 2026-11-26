@@ -47,8 +47,10 @@ class eqLogic {
 		log::$level = 400;
 		DB::$statements = array();
 		DB::$throw = null;
+		DB::$rows = array();
 		history::$emptied = array();
 		cmd::$values = array();
+		cmd::$byString = array();
 	}
 
 	public function getId() {
@@ -144,6 +146,13 @@ class eqLogic {
 class cmd {
 	public static $values = array();
 	private static $nextId = 100;
+
+	/** Commands the tests make findable by cmd::byString(), keyed by the string given to it. */
+	public static $byString = array();
+
+	public static function byString($_string) {
+		return self::$byString[$_string] ?? null;
+	}
 
 	public $id = 0;
 	public $logicalId = '';
@@ -324,13 +333,15 @@ class DB {
 	const FETCH_TYPE_ROW = 2;
 	public static $statements = array();
 	public static $throw = null;
+	/** Rows returned by every Prepare(). */
+	public static $rows = array();
 
 	public static function Prepare($_sql, $_values, $_fetch) {
 		self::$statements[] = array($_sql, $_values);
 		if (self::$throw !== null) {
 			throw self::$throw;
 		}
-		return array();
+		return self::$rows;
 	}
 }
 

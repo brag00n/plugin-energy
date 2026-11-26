@@ -31,7 +31,9 @@
         "Début heure creuse 2": "Début heure creuse 2",
         "Fin heure creuse 2": "Fin heure creuse 2",
         "Début heure creuse 3": "Début heure creuse 3",
-        "Fin heure creuse 3": "Fin heure creuse 3"
+        "Fin heure creuse 3": "Fin heure creuse 3",
+        "Température extérieure": "Température extérieure",
+        "Commande d’information de la température extérieure (par exemple celle du plugin Météo). Elle est tracée en courbe (moyenne par jour) sur les graphiques de consommation, sans modifier les totaux. Vide = pas de courbe.": "Commande d’information de la température extérieure (par exemple celle du plugin Météo). Elle est tracée en courbe (moyenne par jour) sur les graphiques de consommation, sans modifier les totaux. Vide = pas de courbe."
     },
     "plugins\/energy\/desktop\/php\/panel.php": {
         "401 - Accès non autorisé": "401-不正アクセス",
@@ -87,7 +89,8 @@
     "plugins\/energy\/desktop\/js\/panel.js": {
         "Coût": "Coût",
         "Consommation total": "Consommation total",
-        "Consommation totale": "Consommation totale"
+        "Consommation totale": "Consommation totale",
+        "Température ext.": "Température ext."
     },
     "plugins\/energy\/desktop\/js\/energy.js": {
         "Êtes-vous sûr de vouloir Supprimer l\\'historique de cet équipement ?": "Êtes-vous sûr de vouloir Supprimer l\\'historique de cet équipement ?",
