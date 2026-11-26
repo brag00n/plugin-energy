@@ -398,7 +398,8 @@ class energyCatchup {
 			return round($_kwh * $_rates['fixed'], 6);
 		}
 		if ($_hc !== null && $_hp !== null) {
-			return round($_hc * $_rates['hc'] + $_hp * $_rates['hp'], 6);
+			// from the HC/HP as written (3 decimals), unrounded: the panel rebuilds the same split from them
+			return $_hc * $_rates['hc'] + $_hp * $_rates['hp'];
 		}
 		$share = $_share !== null ? $_share : 0;
 		return round($_kwh * ($share * $_rates['hc'] + (1 - $share) * $_rates['hp']), 6);

@@ -49,6 +49,20 @@ final class EnergyCostDetailTest extends EnergyTestCase {
 		$this->assertSame(array(), $detail['unknown'], 'everything is explained by the indexes');
 	}
 
+	public function testARoundingResidueIsNotAnUnknownCost(): void {
+		$this->setConfig('rateMode', 'fixed');
+		$this->setConfig('rate', '0.2');
+		// cost stored with 6 decimals, HC/HP energy with 3: the split misses the cost by a fraction of a thousandth
+		$meter = $this->build(array(
+			new GraphCmdDouble('cost', array(array('2026-11-04', '1.535201'))),
+			new GraphCmdDouble('consumptionHp', array(array('2026-11-04', '2.936'))),
+			new GraphCmdDouble('consumptionHc', array(array('2026-11-04', '4.74'))),
+		), $this->lines());
+		$detail = $this->graph($meter)['costDetail'];
+		$this->assertSame(array(), $detail['unknown'], 'a residue below the thousandth is not a cost without HP/HC');
+		$this->assertEqualsWithDelta(1.5352, $detail['hp'][0][1] + $detail['hc'][0][1], 0.0001);
+	}
+
 	public function testWhatTheIndexesDoNotExplainIsUnknown(): void {
 		$this->setConfig('rateMode', 'fixed');
 		$this->setConfig('rate', '0.2');

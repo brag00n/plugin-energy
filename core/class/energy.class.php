@@ -516,6 +516,11 @@ class energy extends eqLogic {
 				$hc *= $scale;
 			}
 			$unknown = max(0, $point[1] - $hp - $hc);
+			// what is left below the thousandth of the currency is a rounding residue, not a cost without HP/HC information
+			// (the cost and the energy of the HP/HC commands are rounded apart, so the two never match to the last decimal)
+			if ($unknown < 0.001) {
+				$unknown = 0;
+			}
 			foreach (array('hp' => $hp, 'hc' => $hc, 'unknown' => $unknown) as $part => $amount) {
 				if ($amount > 0.0000001) {
 					$detail[$part][] = array($day, $amount);

@@ -187,6 +187,13 @@ final class PluginFilesTest extends TestCase {
 		}
 	}
 
+	/** The import modal chains ajax calls: Jeedom's blurred loading screen (global ajax events) would hide its progress. */
+	public function testTheCatchupAjaxCallsDoNotTriggerTheLoadingScreen(): void {
+		$js = $this->read('desktop/js/catchup.js');
+		$this->assertStringContainsString('global: false', $js);
+		$this->assertStringContainsString('catchup.imported = _ok;', $js);
+	}
+
 	/**
 	 * Jeedom only autoloads the class named like the plugin file (energy): the helper classes are loaded by energy.class.php.
 	 * The ajax file uses energyCatchup, so it must load energy.class.php itself before (a "Class not found" is a silent 500).

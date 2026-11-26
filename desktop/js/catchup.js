@@ -20,6 +20,8 @@ catchup.call = function (_data, _success, _error, _ajaxOptions) {
         url: catchup.url,
         data: _data,
         dataType: 'json',
+        // no global ajax events: Jeedom shows its blurred loading screen on ajaxStart, which hides the progress of the import
+        global: false,
         error: function (request, status, error) {
             if (_error) {
                 _error(error);
@@ -420,7 +422,8 @@ catchup.run = function () {
     var show = function () { $('#div_catchupProgress').html(catchup.progressHtml(states)); };
     var finish = function (_result, _ok) {
         catchup.running = false;
-        catchup.imported = true;
+        // the button becomes "Fermer" only when everything was imported; after an error it stays "Annuler"
+        catchup.imported = _ok;
         var html = catchup.progressHtml(states);
         html += '<div class="alert alert-' + (_ok ? 'success' : 'danger') + '"><strong>' + (_ok ? '{{Import terminé sans erreur.}}' : '{{Import interrompu : corrigez puis restaurez la sauvegarde si besoin.}}') + '</strong><br>' + catchup.esc(_result.message) + (_result.backup ? '<br>{{Sauvegarde}} : ' + catchup.esc(_result.backup) : '') + '</div>';
         html += '<h4>{{Détail de l\'import}} <a class="btn btn-default btn-xs" id="bt_catchupCopyImport"><i class="fas fa-copy"></i> {{Copier}}</a></h4><textarea id="ta_catchupImport" class="form-control" rows="12" readonly style="font-family:monospace;font-size:11px"></textarea>';
