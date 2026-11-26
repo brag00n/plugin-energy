@@ -231,6 +231,64 @@ if (!isConnect()) {
     </div>
 </div>
 
+<legend><i class="fas fa-chart-pie"></i> {{Profil de consommation}}</legend>
+<div class="form-group">
+    <label class="col-sm-2 control-label">{{Saison froide}} <sup><i class="fas fa-question-circle tooltips" title="{{Mois de la saison froide. Les autres mois forment la saison chaude. Chaque saison a sa propre répartition de la consommation entre les équipements.}}"></i></sup></label>
+    <div class="col-sm-8" id="div_profileMonths"></div>
+</div>
+<div class="form-group">
+    <label class="col-sm-2 control-label">{{Répartition par équipement}} <sup><i class="fas fa-question-circle tooltips" title="{{Part de chaque équipement (compteur total exclu) dans la consommation de la maison, en %, pour chaque saison. Ce qui n'est attribué à aucun équipement est « Non mesuré ». Le profil remplace les jours où un équipement mesure mal, à l'affichage seulement : aucune donnée n'est modifiée.}}"></i></sup></label>
+    <div class="col-sm-8">
+        <table class="table table-condensed" id="table_profile">
+            <thead><tr><th>{{Équipement}}</th><th>{{Saison froide (%)}}</th><th>{{Saison chaude (%)}}</th></tr></thead>
+            <tbody></tbody>
+            <tfoot></tfoot>
+        </table>
+        <div id="div_profileSeasons" class="help-block"></div>
+    </div>
+</div>
+<div class="form-group">
+    <label class="col-sm-2 control-label">{{Jours à recalculer}} <sup><i class="fas fa-question-circle tooltips" title="{{Un jour d'un équipement est remplacé par sa part du compteur total quand sa valeur dépasse le seuil (compteur non remis à zéro), ou, pour les jours importés d'Enedis, quand sa valeur est absente ou identique à la veille.}}"></i></sup></label>
+    <div class="col-sm-8">
+        <div class="input-group" style="width:260px">
+            <span class="input-group-addon">{{Seuil (kWh/jour)}}</span>
+            <input class="form-control input-sm" id="in_profileThreshold" type="number" min="10" step="10"/>
+        </div>
+        <label class="checkbox-inline"><input type="checkbox" id="cb_profileCatchup"/> {{Aussi les jours importés d'Enedis (valeur absente ou figée)}}</label>
+    </div>
+</div>
+<div class="form-group">
+    <label class="col-sm-2 control-label"></label>
+    <div class="col-sm-8">
+        <a class="btn btn-success btn-sm" id="bt_profileSave"><i class="fas fa-save"></i> {{Enregistrer le profil}}</a>
+        <a class="btn btn-default btn-sm" id="bt_profileNormalize"><i class="fas fa-equals"></i> {{Ramener à 100 %}}</a>
+        <a class="btn btn-default btn-sm" id="bt_profileDays"><i class="fas fa-search"></i> {{Voir les jours à recalculer}}</a>
+        <div id="div_profileDays" style="margin-top:8px"></div>
+    </div>
+</div>
+<div class="form-group">
+    <label class="col-sm-2 control-label">{{Calculer depuis une plage}} <sup><i class="fas fa-question-circle tooltips" title="{{Calcule la part de chaque équipement sur une plage de jours caractéristiques de la saison, en écartant les jours où un équipement mesure mal. Le résultat remplit les champs de la saison choisie ; vous pouvez le corriger avant d'enregistrer.}}"></i></sup></label>
+    <div class="col-sm-8 form-inline">
+        <input class="form-control input-sm" id="in_profileFrom" type="date"/> →
+        <input class="form-control input-sm" id="in_profileTo" type="date"/>
+        <select class="form-control input-sm" id="sel_profileSeason"><option value="cold">{{Saison froide}}</option><option value="hot">{{Saison chaude}}</option></select>
+        <a class="btn btn-default btn-sm" id="bt_profileAnalyze"><i class="fas fa-calculator"></i> {{Calculer}}</a>
+        <div id="div_profileAnalysis" style="margin-top:8px"></div>
+    </div>
+</div>
+<div class="form-group">
+    <label class="col-sm-2 control-label">{{Anneau}}</label>
+    <div class="col-sm-8">
+        <div class="btn-group" id="div_profileView">
+            <a class="btn btn-default btn-sm active" data-view="year">{{Annuelle}}</a>
+            <a class="btn btn-default btn-sm" data-view="cold">{{Saison froide}}</a>
+            <a class="btn btn-default btn-sm" data-view="hot">{{Saison chaude}}</a>
+        </div>
+        <div id="div_profileChart" style="height:300px"></div>
+        <div id="div_profileList"></div>
+    </div>
+</div>
+
 <legend><i class="fa fa-file-text-o"></i> {{Logs}}</legend>
 <div class="form-group">
     <div class="col-sm-offset-2 col-sm-10">
@@ -267,11 +325,19 @@ if (!isConnect()) {
         <span class="help-block">{{Plages de tarification et recalcul des coûts d'une plage (lignes [rates], jour par jour).}}</span>
     </div>
 </div>
+<div class="form-group">
+    <label class="col-sm-2 control-label">{{Profil}}</label>
+    <div class="col-sm-4">
+        <input type="checkbox" class="configKey" data-l1key="logProfile"/>
+        <span class="help-block">{{Profil de consommation par équipement et jours remplacés (lignes [profile], jour par jour).}}</span>
+    </div>
+</div>
 </fieldset>
 </form>
 
 <?php include_file('desktop', 'catchup', 'js', 'energy');?>
 <?php include_file('desktop', 'rates', 'js', 'energy');?>
+<?php include_file('desktop', 'profile', 'js', 'energy');?>
 <script>
  $('#form_configEnergy').delegate('.enableType','change', function () {
     if($(this).value() == 1){

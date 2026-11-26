@@ -145,6 +145,27 @@ try {
 		}
 	}
 
+	/* CONSUMPTION PROFILE by equipment and season: administrator only, see core/class/energyProfile.class.php */
+	if (strpos(init('action'), 'profile') === 0) {
+		if (!isConnect('admin')) {
+			throw new Exception(__('401 - Accès non autorisé', __FILE__));
+		}
+		require_once dirname(__FILE__) . '/../class/energy.class.php';
+		if (init('action') == 'profileGet') {
+			ajax::success(energyProfile::overview());
+		}
+		if (init('action') == 'profileSave') {
+			energyProfile::save(json_decode(init('cold'), true), json_decode(init('profile'), true), init('threshold'), init('replaceCatchup') == 1);
+			ajax::success(energyProfile::overview());
+		}
+		if (init('action') == 'profileAnalyze') {
+			ajax::success(energyProfile::analyze(init('from'), init('to')));
+		}
+		if (init('action') == 'profileDays') {
+			ajax::success(energyProfile::daysToRecalc(init('from'), init('to')));
+		}
+	}
+
 	throw new Exception(__('Aucune méthode correspondante à : ', __FILE__) . init('action'));
 	/*     * *********Catch exeption*************** */
 } catch (Exception $e) {

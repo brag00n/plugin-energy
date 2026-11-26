@@ -196,6 +196,34 @@ final class PluginFilesTest extends TestCase {
 	}
 
 	/**
+	 * The profile by equipment: reserved to the administrator, loaded by include_file (a direct script tag is refused with a 403),
+	 * every text translated, every tooltip a superscript "?", and its debug traces switchable.
+	 */
+	public function testTheProfileScreenAndItsAjaxAreGuarded(): void {
+		$ajax = $this->read('core/ajax/energy.ajax.php');
+		$position = strpos($ajax, "strpos(init('action'), 'profile') === 0");
+		$this->assertNotFalse($position);
+		$this->assertStringContainsString("isConnect('admin')", substr($ajax, $position, 300));
+		$this->assertStringContainsString("require_once dirname(__FILE__) . '/../class/energy.class.php'", substr($ajax, $position, 500));
+		$screen = $this->read('plugin_info/configuration.php');
+		$this->assertStringContainsString("include_file('desktop', 'profile', 'js', 'energy')", $screen);
+		$this->assertStringNotContainsString('<script src="plugins/energy/desktop/js/profile.js', $screen);
+		$this->assertStringContainsString('data-l1key="logProfile"', $screen);
+		$js = $this->read('desktop/js/profile.js');
+		$this->assertStringContainsString('global: false', $js);
+		$this->assertStringContainsString('profile.plain(data.result)', $js);
+		$this->assertStringContainsString("require_once dirname(__FILE__) . '/energyProfile.class.php'", $this->read('core/class/energy.class.php'));
+		foreach (array('{{Profil}}', '{{Non mesuré}}', '{{Ramener à 100 %}}') as $text) {
+			$this->assertStringContainsString($text, $js . $screen);
+		}
+		$i18n = $this->json('core/i18n/fr_FR.json');
+		foreach (array('plugins/energy/desktop/js/profile.js', 'plugins/energy/core/class/energyProfile.class.php') as $section) {
+			$this->assertArrayHasKey($section, $i18n);
+			$this->assertNotEmpty($i18n[$section]);
+		}
+	}
+
+	/**
 	 * When everything went well the only button left of a modal is "Fermer". The buttons are found by their class or their
 	 * position, never by a bootbox attribute (data-bb-handler), which the version of Jeedom may not give.
 	 */

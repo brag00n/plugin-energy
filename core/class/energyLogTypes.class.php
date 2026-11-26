@@ -12,6 +12,7 @@
  *   anomaly   logAnomaly                  [jump] [cron]          the abnormal consumption detection
  *   catchup   logCatchup                  [catchup]              the catch-up of the history from Enedis (DEBUG; the INFO lines are always written)
  *   rates     logRates                    [rates]                the tariff periods and the cost catch-up of a period (DEBUG)
+ *   profile   logProfile                  [profile]              the consumption profile by equipment and the days it replaces (DEBUG)
  *
  * A type is written only when BOTH hold: the log level of the plugin is debug, and the checkbox of the type is on.
  * Both are on by default, so nothing changes until a box is unchecked. The warnings of the detection (an abnormal
@@ -27,6 +28,7 @@ class energyLogTypes {
 		'anomaly' => 'logAnomaly',
 		'catchup' => 'logCatchup',
 		'rates' => 'logRates',
+		'profile' => 'logProfile',
 	);
 
 	/** Forces a type on or off, only meant for the unit tests: type => bool. */
