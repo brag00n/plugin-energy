@@ -31,7 +31,7 @@ final class EnergyTemperatureTest extends EnergyTestCase {
 		$result = energy::getGraph('2026-01-01 00:00:00', '2026-01-31', 1);
 		$this->assertSame(array(), $result['temperature']);
 		$this->assertSame(array(), DB::$statements);
-		$this->assertNotEmpty(log::$lines, 'the ignored setting is logged');
+		$this->assertSame('error', log::$lines[0][1], 'the ignored setting is logged as an error');
 	}
 
 	public function testTheCommandIsReadFromTheSettingOfTheEnergyType(): void {
@@ -70,5 +70,16 @@ final class EnergyTemperatureTest extends EnergyTestCase {
 		foreach ($result['category'] as $points) {
 			$this->assertSame(array(), $points);
 		}
+	}
+
+	public function testASqlFailureDoesNotBreakThePanelAndIsLogged(): void {
+		$this->weather();
+		new jeeObject(1, 'home');
+		config::$values['energy::outdoorTemperature'] = '#[Maison][Meteo][Temperature]#';
+		DB::$throw = new RuntimeException('database gone');
+		$result = energy::getGraph('2026-01-01 00:00:00', '2026-01-31', 1);
+		$this->assertSame(array(), $result['temperature']);
+		$this->assertStringContainsString('database gone', json_encode(log::$lines));
+		$this->assertStringContainsString('error', json_encode(log::$lines));
 	}
 }

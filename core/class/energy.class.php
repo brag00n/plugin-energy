@@ -586,26 +586,27 @@ class energy extends eqLogic {
 		if ($setting == '') {
 			return array();
 		}
-		// cmd::byString() throws when the name no longer matches (renamed equipment...): the curve is then left out,
-		// a temperature that cannot be read must never break the consumption charts
+		// The temperature is an extra curve: whatever goes wrong here (command renamed or deleted, SQL error...) the panel
+		// must still display the consumption. The cause goes to the energy log, in error level.
 		try {
 			$cmd = cmd::byString($setting);
-		} catch (Exception $e) {
-			log::add('energy', 'warning', 'Outdoor temperature ignored: ' . $e->getMessage());
-			return array();
-		}
-		if (!is_object($cmd)) {
-			return array();
-		}
-		$points = array();
-		foreach (energyCmd::getHistoryDailyMean($cmd->getId(), $_startTime, $_endTime) as $value) {
-			if (!is_numeric($value[1])) {
-				continue;
+			if (!is_object($cmd)) {
+				log::add('energy', 'error', 'Outdoor temperature (' . $_energyType . ') ignored: command not found: ' . $setting);
+				return array();
 			}
-			$day = floatval(strtotime($value[0] . ' UTC')) * 1000;
-			$points[$day] = array($day, round(floatval($value[1]), 1));
+			$points = array();
+			foreach (energyCmd::getHistoryDailyMean($cmd->getId(), $_startTime, $_endTime) as $value) {
+				if (!is_numeric($value[1])) {
+					continue;
+				}
+				$day = floatval(strtotime($value[0] . ' UTC')) * 1000;
+				$points[$day] = array($day, round(floatval($value[1]), 1));
+			}
+			return self::sortByDate($points);
+		} catch (Throwable $e) {
+			log::add('energy', 'error', 'Outdoor temperature (' . $_energyType . ') ignored, setting "' . $setting . '": ' . $e->getMessage());
+			return array();
 		}
-		return self::sortByDate($points);
 	}
 
 	public static function getGraph($_startTime, $_endTime, $_object_id, $_energyType = 'electricity') {
