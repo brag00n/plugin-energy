@@ -103,9 +103,14 @@
         "Puissance": "Power",
         "Puissance (W)": "Power (W)",
         "Consommation": "Consumption",
-        "Consommation (kWh)": "Consumption (kWh)",
-        "Quantité (L)": "Amount (L)",
-        "Quantité": "Amount"
+        "Index consommation (kWh)": "Consumption index (kWh)",
+        "Index quantité (L)": "Quantity index (L)",
+        "Index quantité (kWh)": "Quantity index (kWh)",
+        "Catégorie à laquelle la consommation de cette ligne est rattachée dans le panneau.": "Category to which the consumption of this line is attached in the panel.",
+        "Puissance instantanée en watts (W), donnée par une commande de mesure ou par un nombre fixe. Si l\\'index de consommation est vide, le plugin calcule l\\'énergie en multipliant cette puissance par le temps écoulé (toutes les 15 minutes). Pour un appareil sans mesure, saisissez sa puissance moyenne.": "Instantaneous power in watts (W), given by a measuring command or by a fixed number. If the consumption index is empty, the plugin computes the energy by multiplying this power by the elapsed time (every 15 minutes). For an appliance without measurement, enter its average power.",
+        "Compteur d\\'énergie cumulé (index) en kWh, qui ne fait que monter. Le plugin crédite la différence entre deux relevés (toutes les 15 minutes). Laissez vide si vous n\\'avez qu\\'une puissance : l\\'énergie est alors calculée à partir d\\'elle. Si les deux sont renseignés, l\\'énergie vient de l\\'index et la puissance sert à l\\'affichage. Un compteur en Wh doit être converti, par exemple #id# \/ 1000.": "Cumulative energy counter (index) in kWh, which only goes up. The plugin credits the difference between two readings (every 15 minutes). Leave it empty if you only have a power: the energy is then computed from it. If both are filled in, the energy comes from the index and the power is used for display. A counter in Wh must be converted, for example #id# \/ 1000.",
+        "Index du compteur d\\'eau en litres (L), cumulé, qui ne fait que monter. Le plugin crédite la différence entre deux relevés.": "Cumulative water meter index in litres (L), which only goes up. The plugin credits the difference between two readings.",
+        "Index du compteur de gaz en kWh, cumulé, qui ne fait que monter. Le plugin crédite la différence entre deux relevés.": "Cumulative gas meter index in kWh, which only goes up. The plugin credits the difference between two readings."
     },
     "plugins\/energy\/core\/ajax\/energy.ajax.php": {
         "401 - Accès non autorisé": "401 - Unauthorized access",

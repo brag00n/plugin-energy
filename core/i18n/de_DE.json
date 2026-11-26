@@ -103,9 +103,14 @@
         "Puissance": "Macht",
         "Puissance (W)": "Macht (W)",
         "Consommation": "Verbrauch",
-        "Consommation (kWh)": "Verbrauch (kWh)",
-        "Quantité (L)": "Menge (L)",
-        "Quantité": "Menge"
+        "Index consommation (kWh)": "Index consommation (kWh)",
+        "Index quantité (L)": "Index quantité (L)",
+        "Index quantité (kWh)": "Index quantité (kWh)",
+        "Catégorie à laquelle la consommation de cette ligne est rattachée dans le panneau.": "Catégorie à laquelle la consommation de cette ligne est rattachée dans le panneau.",
+        "Puissance instantanée en watts (W), donnée par une commande de mesure ou par un nombre fixe. Si l\\'index de consommation est vide, le plugin calcule l\\'énergie en multipliant cette puissance par le temps écoulé (toutes les 15 minutes). Pour un appareil sans mesure, saisissez sa puissance moyenne.": "Puissance instantanée en watts (W), donnée par une commande de mesure ou par un nombre fixe. Si l\\'index de consommation est vide, le plugin calcule l\\'énergie en multipliant cette puissance par le temps écoulé (toutes les 15 minutes). Pour un appareil sans mesure, saisissez sa puissance moyenne.",
+        "Compteur d\\'énergie cumulé (index) en kWh, qui ne fait que monter. Le plugin crédite la différence entre deux relevés (toutes les 15 minutes). Laissez vide si vous n\\'avez qu\\'une puissance : l\\'énergie est alors calculée à partir d\\'elle. Si les deux sont renseignés, l\\'énergie vient de l\\'index et la puissance sert à l\\'affichage. Un compteur en Wh doit être converti, par exemple #id# \/ 1000.": "Compteur d\\'énergie cumulé (index) en kWh, qui ne fait que monter. Le plugin crédite la différence entre deux relevés (toutes les 15 minutes). Laissez vide si vous n\\'avez qu\\'une puissance : l\\'énergie est alors calculée à partir d\\'elle. Si les deux sont renseignés, l\\'énergie vient de l\\'index et la puissance sert à l\\'affichage. Un compteur en Wh doit être converti, par exemple #id# \/ 1000.",
+        "Index du compteur d\\'eau en litres (L), cumulé, qui ne fait que monter. Le plugin crédite la différence entre deux relevés.": "Index du compteur d\\'eau en litres (L), cumulé, qui ne fait que monter. Le plugin crédite la différence entre deux relevés.",
+        "Index du compteur de gaz en kWh, cumulé, qui ne fait que monter. Le plugin crédite la différence entre deux relevés.": "Index du compteur de gaz en kWh, cumulé, qui ne fait que monter. Le plugin crédite la différence entre deux relevés."
     },
     "plugins\/energy\/core\/ajax\/energy.ajax.php": {
         "401 - Accès non autorisé": "401 - Nicht autorisierter Zugriff",
