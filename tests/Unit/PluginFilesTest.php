@@ -187,6 +187,13 @@ final class PluginFilesTest extends TestCase {
 		}
 	}
 
+	/** The tariff periods table and its cost catch-up modal chain ajax calls too, and must be loaded through include_file. */
+	public function testTheTariffPeriodsScriptIsLoadedAndDoesNotTriggerTheLoadingScreen(): void {
+		$this->assertStringContainsString("include_file('desktop', 'rates', 'js', 'energy')", $this->read('plugin_info/configuration.php'));
+		$this->assertStringContainsString('global: false', $this->read('desktop/js/rates.js'));
+		$this->assertStringContainsString('id="table_ratePeriods"', $this->read('plugin_info/configuration.php'));
+	}
+
 	/** The import modal chains ajax calls: Jeedom's blurred loading screen (global ajax events) would hide its progress. */
 	public function testTheCatchupAjaxCallsDoNotTriggerTheLoadingScreen(): void {
 		$js = $this->read('desktop/js/catchup.js');

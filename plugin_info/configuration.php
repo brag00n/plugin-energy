@@ -200,6 +200,18 @@ if (!isConnect()) {
         </div>
     </div>
 </div>
+<div class="form-group">
+    <label class="col-sm-2 control-label">{{Plages de tarification}} <sup><i class="fas fa-question-circle tooltips" title="{{Chaque plage donne ses propres tarifs à une période de dates : le coût calculé par le plugin et le panneau utilisent la plage qui contient la date. Une date hors de toute plage utilise les tarifs ci-dessus. Un champ laissé vide reprend la valeur ci-dessus. « Au » est exclu, vide = plage en cours.}}"></i></sup></label>
+    <div class="col-sm-10">
+        <table class="table table-condensed" id="table_ratePeriods">
+            <thead><tr><th>{{Du (inclus)}}</th><th>{{Au (exclu)}}</th><th>{{Tarif HP}}</th><th>{{Tarif HC}}</th><th>{{Tarif fixe}}</th><th>{{Abonnement/jour}}</th><th>{{Heures creuses}}</th><th></th></tr></thead>
+            <tbody></tbody>
+        </table>
+        <a class="btn btn-default btn-sm" id="bt_rateAdd"><i class="fas fa-plus-circle"></i> {{Ajouter une plage}}</a>
+        <a class="btn btn-success btn-sm" id="bt_rateSave"><i class="fas fa-save"></i> {{Enregistrer les plages}}</a>
+        <span class="help-block">{{Enregistrez les plages avant de recalculer les coûts : le calcul lit les plages enregistrées.}}</span>
+    </div>
+</div>
 </div>
 
 <legend><i class="fas fa-history"></i> {{Rattrapage depuis Enedis}}</legend>
@@ -248,10 +260,18 @@ if (!isConnect()) {
         <span class="help-block">{{Étapes du rattrapage de l'historique depuis Enedis (lignes [catchup], jour par jour).}}</span>
     </div>
 </div>
+<div class="form-group">
+    <label class="col-sm-2 control-label">{{Tarification}}</label>
+    <div class="col-sm-4">
+        <input type="checkbox" class="configKey" data-l1key="logRates"/>
+        <span class="help-block">{{Plages de tarification et recalcul des coûts d'une plage (lignes [rates], jour par jour).}}</span>
+    </div>
+</div>
 </fieldset>
 </form>
 
 <?php include_file('desktop', 'catchup', 'js', 'energy');?>
+<?php include_file('desktop', 'rates', 'js', 'energy');?>
 <script>
  $('#form_configEnergy').delegate('.enableType','change', function () {
     if($(this).value() == 1){

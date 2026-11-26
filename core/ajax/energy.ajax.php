@@ -126,6 +126,19 @@ try {
 		if (init('action') == 'catchupRestore') {
 			ajax::success(energyCatchup::restore(init('name')));
 		}
+		/* Tariff periods and the cost catch-up of one of them (see energyRates and energyRateCatchup) */
+		if (init('action') == 'catchupRatePeriods') {
+			ajax::success(array('periods' => energyRates::periods(), 'targets' => energyCatchup::targets(), 'steps' => energyRateCatchup::STEPS));
+		}
+		if (init('action') == 'catchupRateSave') {
+			ajax::success(energyRates::save(json_decode(init('periods'), true)));
+		}
+		if (init('action') == 'catchupRatePreview') {
+			ajax::success(energyRateCatchup::preview(init('energy_id'), init('from')));
+		}
+		if (init('action') == 'catchupRateStep') {
+			ajax::success(energyRateCatchup::runStep(init('id'), init('step'), init('energy_id'), init('from')));
+		}
 		if (init('action') == 'catchupDelete') {
 			energyCatchup::deleteBackup(init('name'));
 			ajax::success();

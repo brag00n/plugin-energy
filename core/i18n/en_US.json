@@ -17,7 +17,7 @@
         "Consommation par catégorie": "Consumption by category"
     },
     "plugins\/energy\/plugin_info\/configuration.php": {
-        "Tarification": "Pricing",
+        "Tarification": "Tariff",
         "Devise": "Motto",
         "Eau": "Water",
         "Activer": "Activate",
@@ -47,7 +47,20 @@
         "Durées et volumes de l'affichage du tableau de bord (lignes [perf]).": "Durées et volumes de l'affichage du tableau de bord (lignes [perf]).",
         "Décisions de la détection des sauts de consommation et cycles du cron (lignes [jump] et [cron]).": "Décisions de la détection des sauts de consommation et cycles du cron (lignes [jump] et [cron]).",
         "Rattrapage": "Catch-up",
-        "Étapes du rattrapage de l'historique depuis Enedis (lignes [catchup], jour par jour).": "Steps of the history catch-up from Enedis ([catchup] lines, day by day)."
+        "Étapes du rattrapage de l'historique depuis Enedis (lignes [catchup], jour par jour).": "Steps of the history catch-up from Enedis ([catchup] lines, day by day).",
+        "Plages de tarification": "Tariff periods",
+        "Chaque plage donne ses propres tarifs à une période de dates : le coût calculé par le plugin et le panneau utilisent la plage qui contient la date. Une date hors de toute plage utilise les tarifs ci-dessus. Un champ laissé vide reprend la valeur ci-dessus. « Au » est exclu, vide = plage en cours.": "Each period gives its own tariffs to a range of dates: the cost computed by the plugin and the panel use the period that holds the date. A date outside every period uses the tariffs above. A field left empty takes the value above. \"To\" is excluded, empty = current period.",
+        "Du (inclus)": "From (included)",
+        "Au (exclu)": "To (excluded)",
+        "Tarif HP": "HP rate",
+        "Tarif HC": "HC rate",
+        "Tarif fixe": "Fixed rate",
+        "Abonnement\/jour": "Subscription\/day",
+        "Heures creuses": "Off-peak hours",
+        "Ajouter une plage": "Add a period",
+        "Enregistrer les plages": "Save the periods",
+        "Enregistrez les plages avant de recalculer les coûts : le calcul lit les plages enregistrées.": "Save the periods before recalculating the costs: the calculation reads the saved periods.",
+        "Plages de tarification et recalcul des coûts d'une plage (lignes [rates], jour par jour).": "Tariff periods and the cost recalculation of a period ([rates] lines, day by day)."
     },
     "plugins\/energy\/desktop\/php\/panel.php": {
         "401 - Accès non autorisé": "401 - Unauthorized access",
@@ -256,5 +269,45 @@
         "Cette étape est déjà faite : ": "Cette étape est déjà faite : ",
         "La sauvegarde n\\'a pas pu être écrite : l\\'import est annulé, rien n\\'a été modifié.": "La sauvegarde n\\'a pas pu être écrite : l\\'import est annulé, rien n\\'a été modifié.",
         "La sauvegarde relue ne correspond pas : l\\'import est annulé, rien n\\'a été modifié.": "La sauvegarde relue ne correspond pas : l\\'import est annulé, rien n\\'a été modifié."
+    },
+    "plugins\/energy\/desktop\/js\/rates.js": {
+        "en cours": "current",
+        "Recalculer les coûts": "Recalculate the costs",
+        "Sauvegardez d\\'abord la configuration": "Save the configuration first",
+        "Plages de tarification enregistrées.": "Tariff periods saved.",
+        "Aucun équipement « compteur total » d\\'électricité : créez-le d\\'abord.": "Aucun équipement « compteur total » d\\'électricité : créez-le d\\'abord.",
+        "Recalcul des coûts": "Cost recalculation",
+        "Analyse en cours…": "Analyse en cours…",
+        "Annuler": "Annuler",
+        "Appliquer": "Appliquer",
+        "jours": "jours",
+        "coût actuel": "current cost",
+        "nouveau": "new",
+        "écart": "gap",
+        "jour(s) sans HC\/HP": "jour(s) sans HC\/HP",
+        "Détail du recalcul": "Recalculation detail",
+        "Copier": "Copier",
+        "Détail copié dans le presse-papiers.": "Détail copié dans le presse-papiers.",
+        "Copie impossible : sélectionnez le texte (Ctrl+C).": "Copie impossible : sélectionnez le texte (Ctrl+C).",
+        "Recalcul terminé sans erreur.": "Recalculation finished without error.",
+        "Recalcul interrompu : restaurez la sauvegarde si besoin.": "Recalculation interrupted: restore the backup if needed.",
+        "Sauvegarde": "Sauvegarde",
+        "Fermer": "Fermer"
+    },
+    "plugins\/energy\/core\/class\/energyRates.class.php": {
+        "Plage de tarification invalide (ligne ": "Invalid tariff period (line ",
+        "Valeur invalide (ligne ": "Invalid value (line ",
+        "Tarif fixe trop long (ligne ": "Fixed rate too long (line ",
+        "Heure invalide (ligne ": "Invalid time (line ",
+        "Les plages de tarification se chevauchent : ": "The tariff periods overlap: ",
+        "Plage de tarification introuvable (enregistrez les plages avant de recalculer) : ": "Tariff period not found (save the periods before recalculating): ",
+        "Cette plage ne contient encore aucun jour passé.": "This period does not hold any past day yet.",
+        "Aucun jour avec une consommation sur cette plage : rien à recalculer.": "No day with a consumption in this period: nothing to recalculate.",
+        "Étape inconnue : ": "Étape inconnue : ",
+        "Identifiant d\\'import invalide.": "Identifiant d\\'import invalide.",
+        "Le recalcul n\\'a pas été contrôlé : recommencez.": "The recalculation was not checked: start again.",
+        "Étape hors ordre : ": "Step out of order: ",
+        "La sauvegarde n\\'a pas pu être écrite : le recalcul est annulé, rien n\\'a été modifié.": "The backup could not be written: the recalculation is cancelled, nothing was modified.",
+        "La sauvegarde relue ne correspond pas : le recalcul est annulé, rien n\\'a été modifié.": "The backup read back does not match: the recalculation is cancelled, nothing was modified."
     }
 }

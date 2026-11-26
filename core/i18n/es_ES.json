@@ -17,7 +17,7 @@
         "Consommation par catégorie": "Consumo por categoria"
     },
     "plugins\/energy\/plugin_info\/configuration.php": {
-        "Tarification": "Precios",
+        "Tarification": "Tarification",
         "Devise": "Moneda",
         "Eau": "Agua",
         "Activer": "Activar",
@@ -47,7 +47,20 @@
         "Durées et volumes de l'affichage du tableau de bord (lignes [perf]).": "Durées et volumes de l'affichage du tableau de bord (lignes [perf]).",
         "Décisions de la détection des sauts de consommation et cycles du cron (lignes [jump] et [cron]).": "Décisions de la détection des sauts de consommation et cycles du cron (lignes [jump] et [cron]).",
         "Rattrapage": "Rattrapage",
-        "Étapes du rattrapage de l'historique depuis Enedis (lignes [catchup], jour par jour).": "Étapes du rattrapage de l'historique depuis Enedis (lignes [catchup], jour par jour)."
+        "Étapes du rattrapage de l'historique depuis Enedis (lignes [catchup], jour par jour).": "Étapes du rattrapage de l'historique depuis Enedis (lignes [catchup], jour par jour).",
+        "Plages de tarification": "Plages de tarification",
+        "Chaque plage donne ses propres tarifs à une période de dates : le coût calculé par le plugin et le panneau utilisent la plage qui contient la date. Une date hors de toute plage utilise les tarifs ci-dessus. Un champ laissé vide reprend la valeur ci-dessus. « Au » est exclu, vide = plage en cours.": "Chaque plage donne ses propres tarifs à une période de dates : le coût calculé par le plugin et le panneau utilisent la plage qui contient la date. Une date hors de toute plage utilise les tarifs ci-dessus. Un champ laissé vide reprend la valeur ci-dessus. « Au » est exclu, vide = plage en cours.",
+        "Du (inclus)": "Du (inclus)",
+        "Au (exclu)": "Au (exclu)",
+        "Tarif HP": "Tarif HP",
+        "Tarif HC": "Tarif HC",
+        "Tarif fixe": "Tarif fixe",
+        "Abonnement\/jour": "Abonnement\/jour",
+        "Heures creuses": "Heures creuses",
+        "Ajouter une plage": "Ajouter une plage",
+        "Enregistrer les plages": "Enregistrer les plages",
+        "Enregistrez les plages avant de recalculer les coûts : le calcul lit les plages enregistrées.": "Enregistrez les plages avant de recalculer les coûts : le calcul lit les plages enregistrées.",
+        "Plages de tarification et recalcul des coûts d'une plage (lignes [rates], jour par jour).": "Plages de tarification et recalcul des coûts d'une plage (lignes [rates], jour par jour)."
     },
     "plugins\/energy\/desktop\/php\/panel.php": {
         "401 - Accès non autorisé": "401 - Acceso no autorizado",
@@ -256,5 +269,45 @@
         "Cette étape est déjà faite : ": "Cette étape est déjà faite : ",
         "La sauvegarde n\\'a pas pu être écrite : l\\'import est annulé, rien n\\'a été modifié.": "La sauvegarde n\\'a pas pu être écrite : l\\'import est annulé, rien n\\'a été modifié.",
         "La sauvegarde relue ne correspond pas : l\\'import est annulé, rien n\\'a été modifié.": "La sauvegarde relue ne correspond pas : l\\'import est annulé, rien n\\'a été modifié."
+    },
+    "plugins\/energy\/desktop\/js\/rates.js": {
+        "en cours": "en cours",
+        "Recalculer les coûts": "Recalculer les coûts",
+        "Sauvegardez d\\'abord la configuration": "Sauvegardez d\\'abord la configuration",
+        "Plages de tarification enregistrées.": "Plages de tarification enregistrées.",
+        "Aucun équipement « compteur total » d\\'électricité : créez-le d\\'abord.": "Aucun équipement « compteur total » d\\'électricité : créez-le d\\'abord.",
+        "Recalcul des coûts": "Recalcul des coûts",
+        "Analyse en cours…": "Analyse en cours…",
+        "Annuler": "Annuler",
+        "Appliquer": "Appliquer",
+        "jours": "jours",
+        "coût actuel": "coût actuel",
+        "nouveau": "nouveau",
+        "écart": "écart",
+        "jour(s) sans HC\/HP": "jour(s) sans HC\/HP",
+        "Détail du recalcul": "Détail du recalcul",
+        "Copier": "Copier",
+        "Détail copié dans le presse-papiers.": "Détail copié dans le presse-papiers.",
+        "Copie impossible : sélectionnez le texte (Ctrl+C).": "Copie impossible : sélectionnez le texte (Ctrl+C).",
+        "Recalcul terminé sans erreur.": "Recalcul terminé sans erreur.",
+        "Recalcul interrompu : restaurez la sauvegarde si besoin.": "Recalcul interrompu : restaurez la sauvegarde si besoin.",
+        "Sauvegarde": "Sauvegarde",
+        "Fermer": "Fermer"
+    },
+    "plugins\/energy\/core\/class\/energyRates.class.php": {
+        "Plage de tarification invalide (ligne ": "Plage de tarification invalide (ligne ",
+        "Valeur invalide (ligne ": "Valeur invalide (ligne ",
+        "Tarif fixe trop long (ligne ": "Tarif fixe trop long (ligne ",
+        "Heure invalide (ligne ": "Heure invalide (ligne ",
+        "Les plages de tarification se chevauchent : ": "Les plages de tarification se chevauchent : ",
+        "Plage de tarification introuvable (enregistrez les plages avant de recalculer) : ": "Plage de tarification introuvable (enregistrez les plages avant de recalculer) : ",
+        "Cette plage ne contient encore aucun jour passé.": "Cette plage ne contient encore aucun jour passé.",
+        "Aucun jour avec une consommation sur cette plage : rien à recalculer.": "Aucun jour avec une consommation sur cette plage : rien à recalculer.",
+        "Étape inconnue : ": "Étape inconnue : ",
+        "Identifiant d\\'import invalide.": "Identifiant d\\'import invalide.",
+        "Le recalcul n\\'a pas été contrôlé : recommencez.": "Le recalcul n\\'a pas été contrôlé : recommencez.",
+        "Étape hors ordre : ": "Étape hors ordre : ",
+        "La sauvegarde n\\'a pas pu être écrite : le recalcul est annulé, rien n\\'a été modifié.": "La sauvegarde n\\'a pas pu être écrite : le recalcul est annulé, rien n\\'a été modifié.",
+        "La sauvegarde relue ne correspond pas : le recalcul est annulé, rien n\\'a été modifié.": "La sauvegarde relue ne correspond pas : le recalcul est annulé, rien n\\'a été modifié."
     }
 }
