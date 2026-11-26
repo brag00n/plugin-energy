@@ -188,6 +188,18 @@ final class PluginFilesTest extends TestCase {
 	}
 
 	/**
+	 * Jeedom only autoloads the class named like the plugin file (energy): the helper classes are loaded by energy.class.php.
+	 * The ajax file uses energyCatchup, so it must load energy.class.php itself before (a "Class not found" is a silent 500).
+	 */
+	public function testTheAjaxFileLoadsTheClassesItUses(): void {
+		$ajax = $this->read('core/ajax/energy.ajax.php');
+		$this->assertStringContainsString('energyCatchup::', $ajax);
+		$this->assertMatchesRegularExpression("#require_once dirname\(__FILE__\) \. '/\.\./class/energy\.class\.php';#", $ajax);
+		$this->assertLessThan(strpos($ajax, 'energyCatchup::'), strpos($ajax, "energy.class.php'"), 'the class file must be loaded before the first use');
+		$this->assertStringContainsString("require_once dirname(__FILE__) . '/energyCatchup.class.php';", $this->read('core/class/energy.class.php'));
+	}
+
+	/**
 	 * Jeedom builds the INSERT of a new equipment (and of a command) from the properties of the eqLogic / cmd class: a
 	 * property declared in class energy or energyCmd becomes a column that does not exist and no equipment can be created
 	 * ("Unknown column 'nowOverride' in 'field list'"). The state of the plugin lives in energyRuntime.

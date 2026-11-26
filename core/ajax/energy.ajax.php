@@ -94,6 +94,8 @@ try {
 		if (!isConnect('admin')) {
 			throw new Exception(__('401 - Accès non autorisé', __FILE__));
 		}
+		// The Jeedom autoloader only knows the class named like the plugin (energy): energy.class.php loads the helper classes
+		require_once dirname(__FILE__) . '/../class/energy.class.php';
 		if (init('action') == 'catchupInit') {
 			ajax::success(array('targets' => energyCatchup::targets(), 'backups' => energyCatchup::listBackups(), 'periods' => json_decode(strval(config::byKey('catchupPeriods', 'energy', '[]')), true), 'steps' => energyCatchup::STEPS));
 		}
