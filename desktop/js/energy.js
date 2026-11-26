@@ -118,7 +118,7 @@ function addConfEnergy(_energy) {
     var div = '<div class="confEnergy ' + $('.eqLogicAttr[data-l1key=configuration][data-l2key=type]').value() + '">';
     if ($('.eqLogicAttr[data-l1key=configuration][data-l2key=type]').value() == 'electricity') {
         div += '<div class="form-group">';
-        div += '<label class="col-sm-1 control-label tooltips" title="{{Catégorie à laquelle la consommation de cette ligne est rattachée dans le panneau.}}">{{Catégorie}}</label>';
+        div += '<label class="col-sm-1 control-label">{{Catégorie}} <sup><i class="fas fa-question-circle tooltips" title="{{Catégorie à laquelle la consommation de cette ligne est rattachée dans le panneau.}}"></i></sup></label>';
         div += '<div class="col-sm-2">';
         div += '<select class="confEnergyAttr form-control input-sm" data-l1key="category" >';
         div += '<option value="other" class="total notTotal">{{Autre}}</option>';
@@ -131,7 +131,7 @@ function addConfEnergy(_energy) {
         div += '<option value="hc" class="total">{{HC}}</option>';
         div += '</select>';
         div += '</div>';
-        div += '<label class="col-sm-1 control-label tooltips" title="{{Puissance instantanée en watts (W), donnée par une commande de mesure ou par un nombre fixe. Si l\'index de consommation est vide, le plugin calcule l\'énergie en multipliant cette puissance par le temps écoulé (toutes les 15 minutes). Pour un appareil sans mesure, saisissez sa puissance moyenne.}}">{{Puissance (W)}}</label>';
+        div += '<label class="col-sm-1 control-label">{{Puissance (W)}} <sup><i class="fas fa-question-circle tooltips" title="{{Puissance instantanée en watts (W), donnée par une commande de mesure ou par un nombre fixe. Si l\'index de consommation est vide, le plugin calcule l\'énergie en multipliant cette puissance par le temps écoulé (toutes les 15 minutes). Pour un appareil sans mesure, saisissez sa puissance moyenne.}}"></i></sup></label>';
         div += '<div class="col-sm-2 has-success">';
         div += '<div class="input-group">';
         div += '<input class="confEnergyAttr form-control input-sm" data-l1key="power" />';
@@ -140,7 +140,7 @@ function addConfEnergy(_energy) {
         div += '</span>';
         div += '</div>';
         div += '</div>';
-        div += '<label class="col-sm-1 control-label tooltips" title="{{Compteur d\'énergie cumulé (index) en kWh, qui ne fait que monter. Le plugin crédite la différence entre deux relevés (toutes les 15 minutes). Laissez vide si vous n\'avez qu\'une puissance : l\'énergie est alors calculée à partir d\'elle. Si les deux sont renseignés, l\'énergie vient de l\'index et la puissance sert à l\'affichage. Un compteur en Wh doit être converti, par exemple #id# / 1000.}}">{{Index consommation (kWh)}}</label>';
+        div += '<label class="col-sm-1 control-label">{{Index consommation (kWh)}} <sup><i class="fas fa-question-circle tooltips" title="{{Compteur d\'énergie cumulé (index) en kWh, qui ne fait que monter. Le plugin crédite la différence entre deux relevés (toutes les 15 minutes). Laissez vide si vous n\'avez qu\'une puissance : l\'énergie est alors calculée à partir d\'elle. Si les deux sont renseignés, l\'énergie vient de l\'index et la puissance sert à l\'affichage. Un compteur en Wh doit être converti, par exemple #id# / 1000.}}"></i></sup></label>';
         div += '<div class="col-sm-2 has-warning">';
         div += '<div class="input-group">';
         div += '<input class="confEnergyAttr form-control input-sm" data-l1key="consumption" />';
@@ -155,7 +155,7 @@ function addConfEnergy(_energy) {
         div += '</div>';
     } else if ($('.eqLogicAttr[data-l1key=configuration][data-l2key=type]').value() == 'water') {
         div += '<div class="form-group">';
-        div += '<label class="col-sm-1 control-label tooltips" title="{{Index du compteur d\'eau en litres (L), cumulé, qui ne fait que monter. Le plugin crédite la différence entre deux relevés.}}">{{Index quantité (L)}}</label>';
+        div += '<label class="col-sm-1 control-label">{{Index quantité (L)}} <sup><i class="fas fa-question-circle tooltips" title="{{Index du compteur d\'eau en litres (L), cumulé, qui ne fait que monter. Le plugin crédite la différence entre deux relevés.}}"></i></sup></label>';
         div += '<div class="col-sm-3 has-success">';
         div += '<div class="input-group">';
         div += '<input class="confEnergyAttr form-control input-sm" data-l1key="consumption" />';
@@ -170,7 +170,7 @@ function addConfEnergy(_energy) {
         div += '</div>';
     } else if ($('.eqLogicAttr[data-l1key=configuration][data-l2key=type]').value() == 'gas') {
         div += '<div class="form-group">';
-        div += '<label class="col-sm-1 control-label tooltips" title="{{Index du compteur de gaz en kWh, cumulé, qui ne fait que monter. Le plugin crédite la différence entre deux relevés.}}">{{Index quantité (kWh)}}</label>';
+        div += '<label class="col-sm-1 control-label">{{Index quantité (kWh)}} <sup><i class="fas fa-question-circle tooltips" title="{{Index du compteur de gaz en kWh, cumulé, qui ne fait que monter. Le plugin crédite la différence entre deux relevés.}}"></i></sup></label>';
         div += '<div class="col-sm-3 has-success">';
         div += '<div class="input-group">';
         div += '<input class="confEnergyAttr input-sm" data-l1key="consumption" />';

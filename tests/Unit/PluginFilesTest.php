@@ -176,6 +176,17 @@ final class PluginFilesTest extends TestCase {
 		}
 	}
 
+	/** A tooltip is a "?" in superscript after the label, never the label itself. */
+	public function testTooltipsAreQuestionMarksInSuperscript(): void {
+		foreach (array('desktop/js/energy.js', 'plugin_info/configuration.php') as $file) {
+			$content = $this->read($file);
+			$this->assertSame(0, preg_match('/<label[^>]*\btooltips\b/', $content), $file . ': tooltip on a label');
+			preg_match_all('/\btooltips\b/', $content, $all);
+			preg_match_all('/<sup><i class="fas fa-question-circle tooltips" title="[^"]+"><\/i><\/sup>/', $content, $ok);
+			$this->assertCount(count($all[0]), $ok[0], $file . ': every tooltip must be a <sup> question mark');
+		}
+	}
+
 	/**
 	 * Jeedom builds the INSERT of a new equipment (and of a command) from the properties of the eqLogic / cmd class: a
 	 * property declared in class energy or energyCmd becomes a column that does not exist and no equipment can be created
