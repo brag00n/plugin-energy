@@ -251,7 +251,7 @@ if (!isConnect()) {
 </fieldset>
 </form>
 
-<script src="plugins/energy/desktop/js/catchup.js"></script>
+<?php include_file('desktop', 'catchup', 'js', 'energy');?>
 <script>
  $('#form_configEnergy').delegate('.enableType','change', function () {
     if($(this).value() == 1){
