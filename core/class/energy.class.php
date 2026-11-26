@@ -21,6 +21,8 @@ require_once dirname(__FILE__) . '/../../../../core/php/core.inc.php';
 
 require_once dirname(__FILE__) . '/energyLogTypes.class.php';
 require_once dirname(__FILE__) . '/energyCatchup.class.php';
+require_once dirname(__FILE__) . '/energyRates.class.php';
+require_once dirname(__FILE__) . '/energyRateCatchup.class.php';
 
 /* ANOMALY: begin - abnormal consumption detection, self-contained in core/class/anomaly/ (see energyAnomaly.class.php to remove it) */
 foreach (array('Rules', 'Kind', 'Electricity', 'Water', 'Gas', 'Profile', 'Cron', 'Report', '') as $anomalyPart) {
@@ -361,19 +363,21 @@ class energy extends eqLogic {
 						$cmd->event($totalConsumption + $previous);
 					}
 					$calculCost = 0;
-					if (config::byKey('rateMode', 'energy') == 'variable') {
+					// the tariffs of the date of the cycle: a tariff period if one holds it, the configuration otherwise
+					$tariff = energyRates::forDate($datetime);
+					if ($tariff['variable']) {
 						if ($consumptions['hp'] != 0 || $consumptions['hc'] != 0) {
-							$calculCost = $consumptions['hp'] * str_replace(',', '.', config::byKey('rateHp', 'energy')) + $consumptions['hc'] * str_replace(',', '.', config::byKey('rateHc', 'energy'));
+							$calculCost = $consumptions['hp'] * $tariff['rateHp'] + $consumptions['hc'] * $tariff['rateHc'];
 						} else {
 							$rateHour = array(
-								'startHp' => intval(ltrim(str_replace(':', '', config::byKey('startHc', 'energy', -1)), '0')),
-								'endHp' => intval(ltrim(str_replace(':', '', config::byKey('endHc', 'energy', -1)), '0')),
-								'startHp2' => intval(ltrim(str_replace(':', '', config::byKey('startHc2', 'energy',-1)), '0')),
-								'endHp2' => intval(ltrim(str_replace(':', '', config::byKey('endHc2', 'energy', -1)), '0')),
-								'startHp3' => intval(ltrim(str_replace(':', '', config::byKey('startHc3', 'energy', -1)), '0')),
-								'endHp3' => intval(ltrim(str_replace(':', '', config::byKey('endHc3', 'energy', -1)), '0')),
-								'rateHp' => str_replace(',', '.', config::byKey('rateHp', 'energy', 0)),
-								'rateHc' => str_replace(',', '.', config::byKey('rateHc', 'energy', 0)),
+								'startHp' => intval(ltrim(str_replace(':', '', $tariff['startHc']), '0')),
+								'endHp' => intval(ltrim(str_replace(':', '', $tariff['endHc']), '0')),
+								'startHp2' => intval(ltrim(str_replace(':', '', $tariff['startHc2']), '0')),
+								'endHp2' => intval(ltrim(str_replace(':', '', $tariff['endHc2']), '0')),
+								'startHp3' => intval(ltrim(str_replace(':', '', $tariff['startHc3']), '0')),
+								'endHp3' => intval(ltrim(str_replace(':', '', $tariff['endHc3']), '0')),
+								'rateHp' => $tariff['rateHp'],
+								'rateHc' => $tariff['rateHc'],
 							);
 							$hourtime = date('Gi', strtotime($datetime));
 							if (self::isInHourRange($hourtime, $rateHour['startHp'], $rateHour['endHp'])) {
@@ -392,8 +396,7 @@ class energy extends eqLogic {
 							}
 						}
 					} else {
-						$cost = jeedom::evaluateExpression(str_replace(',', '.', config::byKey('rate', 'energy', 0)));
-						$calculCost = $totalConsumption * $cost;
+						$calculCost = $totalConsumption * $tariff['rate'];
 					}
 					$cmd = $energy->getCmd(null, 'cost');
 					if (is_object($cmd)) {
@@ -537,10 +540,6 @@ class energy extends eqLogic {
 	 * and to the detail of the bars as a fourth part, so that HP + HC + unknown + subscription = the bar.
 	 */
 	private static function addSubscription(&$_return, $_startTime, $_endTime) {
-		$daily = floatval(str_replace(',', '.', config::byKey('subscriptionDaily', 'energy', 0)));
-		if ($daily <= 0) {
-			return;
-		}
 		$today = strtotime(date('Y-m-d', (energyRuntime::$now !== null) ? energyRuntime::$now : time()));
 		$last = min(strtotime(date('Y-m-d', strtotime($_endTime))), $today);
 		$position = array();
@@ -550,6 +549,11 @@ class energy extends eqLogic {
 		$guard = 0;
 		for ($day = strtotime(date('Y-m-d', strtotime($_startTime))); $day <= $last && $guard < 3700; $day = strtotime('+1 day', $day), $guard++) {
 			$ms = floatval(strtotime(date('Y-m-d', $day) . ' UTC')) * 1000;
+			// the subscription of the day: it changes with the tariff period (a change of the regulated tariff, for instance)
+			$daily = energyRates::forDate(date('Y-m-d', $day))['subscriptionDaily'];
+			if ($daily <= 0) {
+				continue;
+			}
 			if (isset($position[strval($ms)])) {
 				$_return['cost'][$position[strval($ms)]][1] += $daily;
 			} else {
@@ -1008,7 +1012,6 @@ class energy extends eqLogic {
 	 */
 	public function getCostSplit($_startTime = null, $_endTime = null, $_sinceMs = null) {
 		$split = array('hp' => array(), 'hc' => array());
-		$variable = (config::byKey('rateMode', 'energy') == 'variable');
 		$hasRateLine = false;
 		foreach ((array) $this->getConfiguration('confEnergy') as $confEnergy) {
 			if (isset($confEnergy['category']) && ($confEnergy['category'] == 'hp' || $confEnergy['category'] == 'hc')) {
@@ -1023,8 +1026,6 @@ class energy extends eqLogic {
 			if (!is_object($cmd)) {
 				continue;
 			}
-			// fixed tariff: the same rate for both parts, evaluated like cron15 does
-			$rate = $variable ? floatval(str_replace(',', '.', config::byKey($names[1], 'energy', 0))) : floatval(jeedom::evaluateExpression(str_replace(',', '.', config::byKey('rate', 'energy', 0))));
 			foreach ((array) $cmd->getHistoryEnergy($_startTime, $_endTime) as $value) {
 				if (!is_numeric($value[1]) || $value[1] == 0) {
 					continue;
@@ -1033,6 +1034,9 @@ class energy extends eqLogic {
 				if ($_sinceMs !== null && $day < $_sinceMs) {
 					continue;
 				}
+				// the rate of that day: variable tariff, one rate per part; fixed tariff, the single rate for both parts
+				$tariff = energyRates::forDate(substr($value[0], 0, 10));
+				$rate = $tariff['variable'] ? $tariff[$names[1]] : $tariff['rate'];
 				$split[$part][$day] = (isset($split[$part][$day]) ? $split[$part][$day] : 0) + floatval($value[1]) * $rate;
 			}
 		}

@@ -55,7 +55,7 @@ class energyCatchup {
 		return $dir;
 	}
 
-	private static function say(&$_lines, $_level, $_message) {
+	public static function say(&$_lines, $_level, $_message) {
 		$_lines[] = '[' . date('H:i:s') . '] ' . strtoupper($_level) . ' ' . $_message;
 		if ($_level == 'debug' && !energyLogTypes::enabled('catchup')) {
 			return;
@@ -380,15 +380,14 @@ class energyCatchup {
 
 	/* ------------------------------------------------------------------ cost */
 
-	public static function rates() {
-		$number = function ($key) {
-			return floatval(str_replace(',', '.', config::byKey($key, 'energy', 0)));
-		};
+	/** The tariffs of a day (a tariff period if one holds it, the configuration otherwise). */
+	public static function rates($_date = null) {
+		$tariff = energyRates::forDate($_date === null ? date('Y-m-d') : $_date);
 		return array(
-			'variable' => config::byKey('rateMode', 'energy') == 'variable',
-			'hp' => $number('rateHp'),
-			'hc' => $number('rateHc'),
-			'fixed' => floatval(jeedom::evaluateExpression(str_replace(',', '.', config::byKey('rate', 'energy', 0)))),
+			'variable' => $tariff['variable'],
+			'hp' => $tariff['rateHp'],
+			'hc' => $tariff['rateHc'],
+			'fixed' => $tariff['rate'],
 		);
 	}
 
@@ -418,7 +417,7 @@ class energyCatchup {
 		return $list;
 	}
 
-	private static function target($_id) {
+	public static function target($_id) {
 		$energy = eqLogic::byId($_id);
 		if (!is_object($energy) || $energy->getEqType_name() != 'energy' || $energy->getConfiguration('type') != 'electricity' || $energy->getConfiguration('totalCounter') != 1) {
 			throw new Exception(__('Équipement de rattrapage invalide : ', __FILE__) . $_id);
@@ -427,7 +426,7 @@ class energyCatchup {
 	}
 
 	/** Ids of the commands written by the catch-up: logicalId => cmd id (the flag is created by saving the equipment). */
-	private static function commands($_energy) {
+	public static function commands($_energy) {
 		$ids = array();
 		foreach (self::COMMANDS as $logicalId) {
 			$cmd = $_energy->getCmd(null, $logicalId);
@@ -592,9 +591,9 @@ class energyCatchup {
 		$p = self::validateParams($_params, $file);
 		self::say($lines, 'info', 'analysis: equipment ' . $p['energy']->getId() . ', ' . $p['from'] . ' → ' . $p['to'] . ', only days without plugin data: ' . ($p['onlyEmpty'] ? 'yes' : 'no') . ', ' . count($p['periods']) . ' period(s)');
 		$existing = self::pluginDays($p['energy'], $p['from'], $p['to']);
-		$rates = self::rates();
+		$ratesOfDay = array();
 		$share = self::lastShare($p['periods'], $file['days']);
-		self::say($lines, 'debug', 'rates: ' . json_encode($rates) . ', share HC of the last period: ' . ($share === null ? 'none' : round($share, 4)));
+		self::say($lines, 'debug', 'rates of the first and last day: ' . json_encode(self::rates($p['from'])) . ' / ' . json_encode(self::rates($p['to'])) . ', share HC of the last period: ' . ($share === null ? 'none' : round($share, 4)));
 		$days = array();
 		$summary = array('write' => 0, 'keep' => 0, 'replace' => 0, 'kwh' => 0, 'cost' => 0, 'withoutSplit' => 0);
 		foreach (self::daysBetween($p['from'], $p['to']) as $date) {
@@ -605,6 +604,10 @@ class energyCatchup {
 			$plugin = isset($existing[$date]) ? $existing[$date] : 0;
 			$status = $plugin > 0 ? ($p['onlyEmpty'] ? 'keep' : 'replace') : 'write';
 			$split = self::splitDay($date, $day, $p['periods'], $file['days']);
+			if (!isset($ratesOfDay[$date])) {
+				$ratesOfDay[$date] = self::rates($date);
+			}
+			$rates = $ratesOfDay[$date];
 			$cost = self::dayCost($day['kwh'], $split['hc'], $split['hp'], $share, $rates);
 			$summary[$status]++;
 			if ($status != 'keep') {
@@ -669,7 +672,7 @@ class energyCatchup {
 	}
 
 	/** Existing rows of the commands between two days, in both history tables. */
-	private static function readRowsOf($_cmdIds, $_from, $_to) {
+	public static function readRowsOf($_cmdIds, $_from, $_to) {
 		$rows = array();
 		$ids = implode(',', array_map('intval', $_cmdIds));
 		foreach (array('history', 'historyArch') as $table) {
@@ -682,7 +685,7 @@ class energyCatchup {
 		return $rows;
 	}
 
-	private static function deleteRowsOf($_cmdIds, $_from, $_to) {
+	public static function deleteRowsOf($_cmdIds, $_from, $_to) {
 		foreach (array('history', 'historyArch') as $table) {
 			foreach ($_cmdIds as $id) {
 				DB::Prepare('DELETE FROM ' . $table . ' WHERE cmd_id=:cmd_id AND `datetime`>=:start AND `datetime`<=:end', array('cmd_id' => intval($id), 'start' => self::dayStart($_from), 'end' => self::dayEnd($_to)), DB::FETCH_TYPE_ROW);
@@ -690,7 +693,7 @@ class energyCatchup {
 		}
 	}
 
-	private static function insertRow($_table, $_cmdId, $_datetime, $_value) {
+	public static function insertRow($_table, $_cmdId, $_datetime, $_value) {
 		if (!in_array($_table, array('history', 'historyArch'), true)) {
 			throw new Exception('Table inconnue : ' . $_table);
 		}
@@ -710,6 +713,7 @@ class energyCatchup {
 				'from' => $data['from'],
 				'to' => $data['to'],
 				'days' => count($data['writtenDays']),
+				'kind' => isset($data['kind']) ? $data['kind'] : 'import',
 				'rows' => count($data['rows']),
 				'restored' => !empty($data['restored']),
 			);
@@ -720,7 +724,7 @@ class energyCatchup {
 		return $list;
 	}
 
-	private static function backupPath($_name) {
+	public static function backupPath($_name) {
 		if (!is_string($_name) || !preg_match('/^catchup_[0-9]{8}_[0-9]{6}_[a-f0-9]{6}\.json$/', $_name)) {
 			throw new Exception(__('Nom de sauvegarde invalide.', __FILE__));
 		}
@@ -763,16 +767,16 @@ class energyCatchup {
 
 	/* ------------------------------------------------------------------ import (step 4) */
 
-	private static function statePath($_id) {
+	public static function statePath($_id) {
 		return self::dir('catchup') . '/' . $_id . '.json';
 	}
 
-	private static function loadState($_id) {
+	public static function loadState($_id) {
 		$state = json_decode(strval(@file_get_contents(self::statePath($_id))), true);
 		return is_array($state) ? $state : null;
 	}
 
-	private static function saveState($_id, $_state) {
+	public static function saveState($_id, $_state) {
 		file_put_contents(self::statePath($_id), json_encode($_state));
 	}
 
