@@ -64,7 +64,10 @@ profile.render = function () {
     $('#div_profileMonths').html(months);
     var rows = '';
     d.equipments.forEach(function (e) {
+        var isFixed = d.fixed[e.id] !== undefined;
         rows += '<tr class="profileRow" data-id="' + profile.esc(e.id) + '"><td>' + profile.esc(e.name) + '</td>';
+        rows += '<td><select class="form-control input-sm profileKind" style="width:110px"><option value="variable"' + (isFixed ? '' : ' selected') + '>{{Variable}}</option><option value="fixed"' + (isFixed ? ' selected' : '') + '>{{Fixe}}</option></select></td>';
+        rows += '<td><input type="number" min="0" step="0.1" class="form-control input-sm profileWatts" style="width:90px" value="' + (isFixed ? profile.esc(d.fixed[e.id]) : '') + '"></td>';
         ['cold', 'hot'].forEach(function (season) {
             var value = d.typed[season][e.id];
             rows += '<td><input type="number" min="0" max="100" step="0.1" class="form-control input-sm profileShare" data-season="' + season + '" style="width:90px" value="' + (value === undefined ? '' : profile.esc(value)) + '"></td>';
@@ -72,21 +75,39 @@ profile.render = function () {
         rows += '</tr>';
     });
     if (d.equipments.length == 0) {
-        rows = '<tr><td colspan="3">{{Aucun équipement électricité (hors compteur total).}}</td></tr>';
+        rows = '<tr><td colspan="5">{{Aucun équipement électricité (hors compteur total).}}</td></tr>';
     }
     $('#table_profile tbody').html(rows);
+    $('#table_profile tbody tr.profileRow').each(profile.applyKind);
     $('#in_profileThreshold').val(d.threshold);
     $('#cb_profileCatchup').prop('checked', d.replaceCatchup == 1);
     profile.totals();
     profile.draw();
 };
 
+/* a fixed equipment has a constant power and no share; a variable one has shares and no power */
+profile.applyKind = function () {
+    var isFixed = $(this).find('.profileKind').val() == 'fixed';
+    $(this).find('.profileWatts').prop('disabled', !isFixed);
+    $(this).find('.profileShare').prop('disabled', isFixed);
+    if (isFixed) {
+        $(this).find('.profileShare').val('');
+    }
+};
+
 profile.read = function () {
     var cold = [];
     $('.profileMonth:checked').each(function () { cold.push(parseInt($(this).val(), 10)); });
     var shares = {cold: {}, hot: {}};
+    var fixed = {};
     $('#table_profile tbody tr.profileRow').each(function () {
         var id = $(this).attr('data-id');
+        if ($(this).find('.profileKind').val() == 'fixed') {
+            if ($(this).find('.profileWatts').val() !== '') {
+                fixed[id] = $(this).find('.profileWatts').val();
+            }
+            return;
+        }
         $(this).find('.profileShare').each(function () {
             var value = $(this).val();
             if (value !== '') {
@@ -94,7 +115,7 @@ profile.read = function () {
             }
         });
     });
-    return {cold: cold, profile: shares};
+    return {cold: cold, profile: shares, fixed: fixed};
 };
 
 /* sum of every season, and what is left unmeasured */
@@ -123,13 +144,25 @@ profile.draw = function () {
     var kwh = 0, cost = 0;
     var seasons = profile.view == 'year' ? ['cold', 'hot'] : [profile.view];
     seasons.forEach(function (season) { kwh += d.seasons[season].kwh; cost += d.seasons[season].cost; });
-    var ids = d.equipments.map(function (e) { return e.id; }).concat(['unmeasured']);
+    // a fixed equipment draws its power every day: its kWh over the days of the period, the variable ones share the rest
+    var fixedKwh = 0, days = 0;
+    seasons.forEach(function (season) { days += d.seasons[season].days; });
+    Object.keys(d.fixed).forEach(function (id) { fixedKwh += d.fixed[id] * 24 / 1000 * days; });
+    fixedKwh = Math.min(fixedKwh, kwh);
+    var variableKwh = kwh - fixedKwh;
+    Object.keys(d.fixed).forEach(function (id) {
+        var own = Math.min(d.fixed[id] * 24 / 1000 * days, kwh);
+        parts.push({id: id, name: names[id] + ' ({{fixe}})', share: kwh > 0 ? own * 100 / kwh : 0, kwh: own, cost: kwh > 0 ? cost * own / kwh : 0});
+    });
+    var ids = d.equipments.map(function (e) { return e.id; }).filter(function (id) { return d.fixed[id] === undefined; }).concat(['unmeasured']);
     ids.forEach(function (id) {
-        var share = 0;
+        var own = 0;
         seasons.forEach(function (season) {
-            share += (kwh > 0 ? d.seasons[season].kwh / kwh : 1 / seasons.length) * profile.shareOf(season, id);
+            var seasonKwh = d.seasons[season].kwh;
+            var seasonVariable = Math.max(0, seasonKwh - Math.min(fixedKwh * (kwh > 0 ? seasonKwh / kwh : 0), seasonKwh));
+            own += seasonVariable * profile.shareOf(season, id) / 100;
         });
-        parts.push({id: id, name: id == 'unmeasured' ? '{{Non mesuré}}' : names[id], share: share, kwh: kwh * share / 100, cost: cost * share / 100});
+        parts.push({id: id, name: id == 'unmeasured' ? '{{Non mesuré}}' : names[id], share: kwh > 0 ? own * 100 / kwh : 0, kwh: own, cost: kwh > 0 ? cost * own / kwh : 0});
     });
     parts.sort(function (a, b) { return b.share - a.share; });
     var list = '<table class="table table-condensed" style="max-width:520px">';
@@ -172,6 +205,7 @@ $('#bt_profileSave').on('click', function () {
         action: 'profileSave',
         cold: JSON.stringify(input.cold),
         profile: JSON.stringify(input.profile),
+        fixed: JSON.stringify(input.fixed),
         threshold: $('#in_profileThreshold').val(),
         replaceCatchup: $('#cb_profileCatchup').is(':checked') ? 1 : 0
     }, function (result) {
@@ -199,6 +233,11 @@ $('#bt_profileNormalize').on('click', function () {
 
 $('#table_profile').on('input', '.profileShare', profile.totals);
 
+$('#table_profile').on('change', '.profileKind', function () {
+    $(this).closest('tr').each(profile.applyKind);
+    profile.totals();
+});
+
 $('#div_profileView').on('click', 'a', function () {
     profile.view = $(this).attr('data-view');
     $('#div_profileView a').removeClass('active');
@@ -211,17 +250,30 @@ $('#div_profileView').on('click', 'a', function () {
 $('#bt_profileAnalyze').on('click', function () {
     var season = $('#sel_profileSeason').val();
     profile.call({action: 'profileAnalyze', from: $('#in_profileFrom').val(), to: $('#in_profileTo').val()}, function (r) {
-        // the result fills the fields of the season chosen: it is a proposal, saved only by "Enregistrer le profil"
-        $('.profileShare[data-season=' + season + ']').each(function () {
-            var id = $(this).closest('tr').attr('data-id');
-            $(this).val(r.shares[id] === undefined ? '' : r.shares[id]);
+        // the result fills the fields: it is a proposal, saved only by "Enregistrer le profil". The kind of every equipment is
+        // detected (a constant day = fixed, with its power), and everything stays editable by hand.
+        $('#table_profile tbody tr.profileRow').each(function () {
+            var id = $(this).attr('data-id');
+            if (r.fixed[id] !== undefined) {
+                $(this).find('.profileKind').val('fixed');
+                $(this).find('.profileWatts').val(r.fixed[id]);
+            } else {
+                $(this).find('.profileKind').val('variable');
+                $(this).find('.profileWatts').val('');
+            }
+            $(this).each(profile.applyKind);
+            if (r.fixed[id] === undefined) {
+                $(this).find('.profileShare[data-season=' + season + ']').val(r.shares[id] === undefined ? '' : r.shares[id]);
+            }
         });
         profile.totals();
         var html = '<b>' + r.days + '</b> {{jours retenus}}, ' + r.kwh + ' kWh. ' + Object.keys(r.dropped).length + ' {{jours écartés}}';
         if (Object.keys(r.dropped).length > 0) {
             html += ' (' + Object.keys(r.dropped).slice(0, 12).map(function (date) { return profile.esc(date) + ' ' + profile.esc(r.dropped[date]); }).join(', ') + (Object.keys(r.dropped).length > 12 ? ' …' : '') + ')';
         }
-        html += '. {{Non mesuré}} : ' + r.unmeasured + ' %. {{Les champs de la saison choisie sont remplis : enregistrez pour les appliquer.}}';
+        var fixedIds = Object.keys(r.fixed);
+        html += '. ' + fixedIds.length + ' {{équipement(s) fixe(s) détecté(s)}}' + (fixedIds.length ? ' (' + fixedIds.map(function (id) { return r.fixed[id] + ' W'; }).join(', ') + ', ' + r.fixedKwh + ' kWh)' : '');
+        html += '. {{Non mesuré}} : ' + r.unmeasured + ' %. {{Les types et les champs de la saison choisie sont remplis, modifiables à la main : enregistrez pour les appliquer.}}';
         $('#div_profileAnalysis').html(html);
     }, function (error) {
         $('#div_profileAnalysis').html('<span class="text-danger">' + profile.esc(error) + '</span>');

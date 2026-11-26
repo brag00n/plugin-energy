@@ -66,7 +66,7 @@
         "Saison froide": "Cold season",
         "Mois de la saison froide. Les autres mois forment la saison chaude. Chaque saison a sa propre répartition de la consommation entre les équipements.": "Months of the cold season. The other months make the hot season. Each season has its own split of the consumption between the equipments.",
         "Répartition par équipement": "Split by equipment",
-        "Part de chaque équipement (compteur total exclu) dans la consommation de la maison, en %, pour chaque saison. Ce qui n'est attribué à aucun équipement est « Non mesuré ». Le profil remplace les jours où un équipement mesure mal, à l'affichage seulement : aucune donnée n'est modifiée.": "Share of each equipment (total counter excluded) in the consumption of the house, in %, for each season. What is given to no equipment is « Unmeasured ». The profile replaces the days an equipment measures badly, on display only: no data is changed.",
+        "Deux types d'équipement. Fixe : une puissance constante en W (frigo, box), sa consommation du jour est toujours puissance × 24 h. Variable : une part en % de ce que le compteur total enregistre en plus des équipements fixes (radiateur), pour chaque saison. Ce qui n'est attribué à aucun équipement est « Non mesuré ». Le profil remplace les jours où un équipement mesure mal, à l'affichage seulement : aucune donnée n'est modifiée.": "Two kinds of equipment. Fixed: a constant power in W (fridge, box), its consumption of the day is always power × 24 h. Variable: a share in % of what the total counter records beyond the fixed equipments (radiator), for each season. What is given to no equipment is « Unmeasured ». The profile replaces the days an equipment measures badly, on display only: no data is changed.",
         "Équipement": "Equipment",
         "Saison froide (%)": "Cold season (%)",
         "Saison chaude (%)": "Hot season (%)",
@@ -78,13 +78,15 @@
         "Ramener à 100 %": "Scale down to 100 %",
         "Voir les jours à recalculer": "Show the days to recalculate",
         "Calculer depuis une plage": "Compute from a range",
-        "Calcule la part de chaque équipement sur une plage de jours caractéristiques de la saison, en écartant les jours où un équipement mesure mal. Le résultat remplit les champs de la saison choisie ; vous pouvez le corriger avant d'enregistrer.": "Computes the share of each equipment over a range of days that are typical of the season, dropping the days an equipment measures badly. The result fills the fields of the chosen season; you can correct it before saving.",
+        "Sur une plage de jours caractéristiques de la saison, détecte les équipements fixes (valeur constante chaque jour) et leur puissance, puis calcule la part des équipements variables, en écartant les jours où un équipement mesure mal. Le résultat remplit le tableau ; vous pouvez tout corriger à la main avant d'enregistrer.": "Over a range of days typical of the season, detects the fixed equipments (a constant value every day) and their power, then computes the share of the variable equipments, dropping the days an equipment measures badly. The result fills the table; you can correct everything by hand before saving.",
         "Saison chaude": "Hot season",
         "Calculer": "Compute",
         "Anneau": "Doughnut",
         "Annuelle": "Yearly",
         "Profil": "Profile",
-        "Profil de consommation par équipement et jours remplacés (lignes [profile], jour par jour).": "Consumption profile by equipment and replaced days ([profile] lines, day by day)."
+        "Profil de consommation par équipement et jours remplacés (lignes [profile], jour par jour).": "Consumption profile by equipment and replaced days ([profile] lines, day by day).",
+        "Type": "Type",
+        "Puissance fixe (W)": "Fixed power (W)"
     },
     "plugins\/energy\/desktop\/php\/panel.php": {
         "401 - Accès non autorisé": "401 - Unauthorized access",
@@ -365,11 +367,15 @@
         "Profil enregistré.": "Profile saved.",
         "jours retenus": "days kept",
         "jours écartés": "days dropped",
-        "Les champs de la saison choisie sont remplis : enregistrez pour les appliquer.": "The fields of the chosen season are filled: save to apply them.",
         "jours à recalculer": "days to recalculate",
         "aberrants": "aberrant",
         "figés": "frozen",
-        "absents": "missing"
+        "absents": "missing",
+        "Variable": "Variable",
+        "Fixe": "Fixed",
+        "fixe": "fixed",
+        "équipement(s) fixe(s) détecté(s)": "fixed equipment(s) detected",
+        "Les types et les champs de la saison choisie sont remplis, modifiables à la main : enregistrez pour les appliquer.": "The kinds and the fields of the chosen season are filled, editable by hand: save to apply them."
     },
     "plugins\/energy\/core\/class\/energyProfile.class.php": {
         "Mois invalide : ": "Invalid month: ",
@@ -380,6 +386,7 @@
         "saison chaude": "hot season",
         "Plage de dates invalide : ": "Invalid date range: ",
         "Plage de dates trop longue.": "Date range too long.",
-        "Aucun compteur total pour calculer le profil.": "No total counter to compute the profile."
+        "Aucun compteur total pour calculer le profil.": "No total counter to compute the profile.",
+        "Puissance invalide (0 à 100000 W) : ": "Invalid power (0 to 100000 W): "
     }
 }

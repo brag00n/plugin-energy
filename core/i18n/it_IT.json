@@ -66,7 +66,7 @@
         "Saison froide": "Saison froide",
         "Mois de la saison froide. Les autres mois forment la saison chaude. Chaque saison a sa propre répartition de la consommation entre les équipements.": "Mois de la saison froide. Les autres mois forment la saison chaude. Chaque saison a sa propre répartition de la consommation entre les équipements.",
         "Répartition par équipement": "Répartition par équipement",
-        "Part de chaque équipement (compteur total exclu) dans la consommation de la maison, en %, pour chaque saison. Ce qui n'est attribué à aucun équipement est « Non mesuré ». Le profil remplace les jours où un équipement mesure mal, à l'affichage seulement : aucune donnée n'est modifiée.": "Part de chaque équipement (compteur total exclu) dans la consommation de la maison, en %, pour chaque saison. Ce qui n'est attribué à aucun équipement est « Non mesuré ». Le profil remplace les jours où un équipement mesure mal, à l'affichage seulement : aucune donnée n'est modifiée.",
+        "Deux types d'équipement. Fixe : une puissance constante en W (frigo, box), sa consommation du jour est toujours puissance × 24 h. Variable : une part en % de ce que le compteur total enregistre en plus des équipements fixes (radiateur), pour chaque saison. Ce qui n'est attribué à aucun équipement est « Non mesuré ». Le profil remplace les jours où un équipement mesure mal, à l'affichage seulement : aucune donnée n'est modifiée.": "Deux types d'équipement. Fixe : une puissance constante en W (frigo, box), sa consommation du jour est toujours puissance × 24 h. Variable : une part en % de ce que le compteur total enregistre en plus des équipements fixes (radiateur), pour chaque saison. Ce qui n'est attribué à aucun équipement est « Non mesuré ». Le profil remplace les jours où un équipement mesure mal, à l'affichage seulement : aucune donnée n'est modifiée.",
         "Équipement": "Équipement",
         "Saison froide (%)": "Saison froide (%)",
         "Saison chaude (%)": "Saison chaude (%)",
@@ -78,13 +78,15 @@
         "Ramener à 100 %": "Ramener à 100 %",
         "Voir les jours à recalculer": "Voir les jours à recalculer",
         "Calculer depuis une plage": "Calculer depuis une plage",
-        "Calcule la part de chaque équipement sur une plage de jours caractéristiques de la saison, en écartant les jours où un équipement mesure mal. Le résultat remplit les champs de la saison choisie ; vous pouvez le corriger avant d'enregistrer.": "Calcule la part de chaque équipement sur une plage de jours caractéristiques de la saison, en écartant les jours où un équipement mesure mal. Le résultat remplit les champs de la saison choisie ; vous pouvez le corriger avant d'enregistrer.",
+        "Sur une plage de jours caractéristiques de la saison, détecte les équipements fixes (valeur constante chaque jour) et leur puissance, puis calcule la part des équipements variables, en écartant les jours où un équipement mesure mal. Le résultat remplit le tableau ; vous pouvez tout corriger à la main avant d'enregistrer.": "Sur une plage de jours caractéristiques de la saison, détecte les équipements fixes (valeur constante chaque jour) et leur puissance, puis calcule la part des équipements variables, en écartant les jours où un équipement mesure mal. Le résultat remplit le tableau ; vous pouvez tout corriger à la main avant d'enregistrer.",
         "Saison chaude": "Saison chaude",
         "Calculer": "Calculer",
         "Anneau": "Anneau",
         "Annuelle": "Annuelle",
         "Profil": "Profil",
-        "Profil de consommation par équipement et jours remplacés (lignes [profile], jour par jour).": "Profil de consommation par équipement et jours remplacés (lignes [profile], jour par jour)."
+        "Profil de consommation par équipement et jours remplacés (lignes [profile], jour par jour).": "Profil de consommation par équipement et jours remplacés (lignes [profile], jour par jour).",
+        "Type": "Type",
+        "Puissance fixe (W)": "Puissance fixe (W)"
     },
     "plugins\/energy\/desktop\/php\/panel.php": {
         "401 - Accès non autorisé": "401 - Accesso non autorizzato",
@@ -365,11 +367,15 @@
         "Profil enregistré.": "Profil enregistré.",
         "jours retenus": "jours retenus",
         "jours écartés": "jours écartés",
-        "Les champs de la saison choisie sont remplis : enregistrez pour les appliquer.": "Les champs de la saison choisie sont remplis : enregistrez pour les appliquer.",
         "jours à recalculer": "jours à recalculer",
         "aberrants": "aberrants",
         "figés": "figés",
-        "absents": "absents"
+        "absents": "absents",
+        "Variable": "Variable",
+        "Fixe": "Fixe",
+        "fixe": "fixe",
+        "équipement(s) fixe(s) détecté(s)": "équipement(s) fixe(s) détecté(s)",
+        "Les types et les champs de la saison choisie sont remplis, modifiables à la main : enregistrez pour les appliquer.": "Les types et les champs de la saison choisie sont remplis, modifiables à la main : enregistrez pour les appliquer."
     },
     "plugins\/energy\/core\/class\/energyProfile.class.php": {
         "Mois invalide : ": "Mois invalide : ",
@@ -380,6 +386,7 @@
         "saison chaude": "saison chaude",
         "Plage de dates invalide : ": "Plage de dates invalide : ",
         "Plage de dates trop longue.": "Plage de dates trop longue.",
-        "Aucun compteur total pour calculer le profil.": "Aucun compteur total pour calculer le profil."
+        "Aucun compteur total pour calculer le profil.": "Aucun compteur total pour calculer le profil.",
+        "Puissance invalide (0 à 100000 W) : ": "Puissance invalide (0 à 100000 W) : "
     }
 }

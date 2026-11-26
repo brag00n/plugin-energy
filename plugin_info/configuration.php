@@ -237,10 +237,10 @@ if (!isConnect()) {
     <div class="col-sm-8" id="div_profileMonths"></div>
 </div>
 <div class="form-group">
-    <label class="col-sm-2 control-label">{{Répartition par équipement}} <sup><i class="fas fa-question-circle tooltips" title="{{Part de chaque équipement (compteur total exclu) dans la consommation de la maison, en %, pour chaque saison. Ce qui n'est attribué à aucun équipement est « Non mesuré ». Le profil remplace les jours où un équipement mesure mal, à l'affichage seulement : aucune donnée n'est modifiée.}}"></i></sup></label>
+    <label class="col-sm-2 control-label">{{Répartition par équipement}} <sup><i class="fas fa-question-circle tooltips" title="{{Deux types d'équipement. Fixe : une puissance constante en W (frigo, box), sa consommation du jour est toujours puissance × 24 h. Variable : une part en % de ce que le compteur total enregistre en plus des équipements fixes (radiateur), pour chaque saison. Ce qui n'est attribué à aucun équipement est « Non mesuré ». Le profil remplace les jours où un équipement mesure mal, à l'affichage seulement : aucune donnée n'est modifiée.}}"></i></sup></label>
     <div class="col-sm-8">
         <table class="table table-condensed" id="table_profile">
-            <thead><tr><th>{{Équipement}}</th><th>{{Saison froide (%)}}</th><th>{{Saison chaude (%)}}</th></tr></thead>
+            <thead><tr><th>{{Équipement}}</th><th>{{Type}}</th><th>{{Puissance fixe (W)}}</th><th>{{Saison froide (%)}}</th><th>{{Saison chaude (%)}}</th></tr></thead>
             <tbody></tbody>
             <tfoot></tfoot>
         </table>
@@ -267,7 +267,7 @@ if (!isConnect()) {
     </div>
 </div>
 <div class="form-group">
-    <label class="col-sm-2 control-label">{{Calculer depuis une plage}} <sup><i class="fas fa-question-circle tooltips" title="{{Calcule la part de chaque équipement sur une plage de jours caractéristiques de la saison, en écartant les jours où un équipement mesure mal. Le résultat remplit les champs de la saison choisie ; vous pouvez le corriger avant d'enregistrer.}}"></i></sup></label>
+    <label class="col-sm-2 control-label">{{Calculer depuis une plage}} <sup><i class="fas fa-question-circle tooltips" title="{{Sur une plage de jours caractéristiques de la saison, détecte les équipements fixes (valeur constante chaque jour) et leur puissance, puis calcule la part des équipements variables, en écartant les jours où un équipement mesure mal. Le résultat remplit le tableau ; vous pouvez tout corriger à la main avant d'enregistrer.}}"></i></sup></label>
     <div class="col-sm-8 form-inline">
         <input class="form-control input-sm" id="in_profileFrom" type="date"/> →
         <input class="form-control input-sm" id="in_profileTo" type="date"/>
