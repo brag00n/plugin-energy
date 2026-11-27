@@ -399,7 +399,16 @@
         "Analyser": "Analyser",
         "Recalcul des consommations avec les profils": "Recalcul des consommations avec les profils",
         "Choisissez la plage et les jours à réécrire, puis lancez l'analyse : rien n'est écrit avant « Appliquer ».": "Choisissez la plage et les jours à réécrire, puis lancez l'analyse : rien n'est écrit avant « Appliquer ».",
-        "Appliquer": "Appliquer"
+        "Appliquer": "Appliquer",
+        "texte hors crochets non compris": "texte hors crochets non compris",
+        "élément non compris": "élément non compris",
+        "date impossible": "date impossible",
+        "la fin est avant le début": "la fin est avant le début",
+        "Aucun jour écarté.": "Aucun jour écarté.",
+        "élément(s)": "élément(s)",
+        "jour(s)": "jour(s)",
+        "écartés à la main": "écartés à la main",
+        "écartés (saisie)": "écartés (saisie)"
     },
     "plugins\/energy\/core\/class\/energyProfile.class.php": {
         "Mois invalide : ": "Mois invalide : ",
@@ -412,7 +421,11 @@
         "saison chaude": "saison chaude",
         "Plage de dates invalide : ": "Plage de dates invalide : ",
         "Plage de dates trop longue.": "Plage de dates trop longue.",
-        "Aucun compteur total pour calculer le profil.": "Aucun compteur total pour calculer le profil."
+        "Aucun compteur total pour calculer le profil.": "Aucun compteur total pour calculer le profil.",
+        "Jours à écarter : texte hors crochets non compris : ": "Jours à écarter : texte hors crochets non compris : ",
+        "Jours à écarter : élément non compris : ": "Jours à écarter : élément non compris : ",
+        "Jours à écarter : la fin est avant le début : ": "Jours à écarter : la fin est avant le début : ",
+        "Jours à écarter : date impossible : ": "Jours à écarter : date impossible : "
     },
     "plugins\/energy\/plugin_info\/configuration_updateWithProfil.php": {
         "Profils de consommation": "Profils de consommation",
@@ -448,7 +461,9 @@
         "Pour un équipement Variable seulement : sa part, en %, de ce que le total de la journée laisse après les équipements fixes, les jours de la saison froide. 0 = il ne consomme rien cette saison (un radiateur en été). La somme des équipements ne dépasse pas 100 % : le reste est « Non mesuré ».": "Pour un équipement Variable seulement : sa part, en %, de ce que le total de la journée laisse après les équipements fixes, les jours de la saison froide. 0 = il ne consomme rien cette saison (un radiateur en été). La somme des équipements ne dépasse pas 100 % : le reste est « Non mesuré ».",
         "La même part, pour les jours de la saison chaude. Un chauffe-eau garde une part en été (les douches) ; un radiateur est à 0.": "La même part, pour les jours de la saison chaude. Un chauffe-eau garde une part en été (les douches) ; un radiateur est à 0.",
         "Avec une tarification HP\/HC seulement : la part de la consommation de l'équipement qui tombe en heures creuses (HC) les jours de la saison froide, le reste est en heures pleines (HP). 100 = tout en HC (chauffe-eau asservi aux heures creuses), 50 = moitié-moitié, 0 ou vide = tout en HP. Sans effet avec une tarification fixe : le tarif du jour décide.": "Avec une tarification HP\/HC seulement : la part de la consommation de l'équipement qui tombe en heures creuses (HC) les jours de la saison froide, le reste est en heures pleines (HP). 100 = tout en HC (chauffe-eau asservi aux heures creuses), 50 = moitié-moitié, 0 ou vide = tout en HP. Sans effet avec une tarification fixe : le tarif du jour décide.",
-        "La même part d'heures creuses, pour les jours de la saison chaude. Vide = 0 : tout en heures pleines.": "La même part d'heures creuses, pour les jours de la saison chaude. Vide = 0 : tout en heures pleines."
+        "La même part d'heures creuses, pour les jours de la saison chaude. Vide = 0 : tout en heures pleines.": "La même part d'heures creuses, pour les jours de la saison chaude. Vide = 0 : tout en heures pleines.",
+        "Jours à écarter": "Jours à écarter",
+        "Jours exclus du calcul des profils et du recalcul des consommations (vacances, absences, jours aberrants). Syntaxe : une plage [début-fin], bornes incluses, ou un jour seul [date], séparés par une virgule, un point-virgule ou un retour à la ligne. Dates en AAAA-MM-JJ ou JJ\/MM\/AAAA. Exemple : [2025-08-07-2025-08-20],[2025-10-21-2025-10-31],[2026-04-03]. Le recalcul laisse ces jours tels quels.": "Jours exclus du calcul des profils et du recalcul des consommations (vacances, absences, jours aberrants). Syntaxe : une plage [début-fin], bornes incluses, ou un jour seul [date], séparés par une virgule, un point-virgule ou un retour à la ligne. Dates en AAAA-MM-JJ ou JJ\/MM\/AAAA. Exemple : [2025-08-07-2025-08-20],[2025-10-21-2025-10-31],[2026-04-03]. Le recalcul laisse ces jours tels quels."
     },
     "plugins\/energy\/core\/class\/energyProfileUpdate.class.php": {
         "La plage doit se terminer hier au plus tard : ": "La plage doit se terminer hier au plus tard : ",
@@ -461,6 +476,7 @@
         "Rien à réécrire : aucun jour de la plage n'entre dans les cases choisies.": "Rien à réécrire : aucun jour de la plage n'entre dans les cases choisies.",
         "Équipement introuvable : ": "Équipement introuvable : ",
         "La sauvegarde n'a pas pu être écrite : le recalcul est annulé, rien n'a été modifié.": "La sauvegarde n'a pas pu être écrite : le recalcul est annulé, rien n'a été modifié.",
-        "La sauvegarde relue ne correspond pas : le recalcul est annulé, rien n'a été modifié.": "La sauvegarde relue ne correspond pas : le recalcul est annulé, rien n'a été modifié."
+        "La sauvegarde relue ne correspond pas : le recalcul est annulé, rien n'a été modifié.": "La sauvegarde relue ne correspond pas : le recalcul est annulé, rien n'a été modifié.",
+        " · écartés (saisie) : ": " · écartés (saisie) : "
     }
 }

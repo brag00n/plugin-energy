@@ -108,9 +108,66 @@ profile.render = function () {
     $('#table_profile tbody tr.profileRow').each(profile.applyKind);
     $('#in_profileToleranceFixed').val(d.toleranceFixed);
     $('#in_profileToleranceVariable').val(d.toleranceVariable);
+    $('#ta_profileExcluded').val(d.excluded || '');
+    profile.excludedPreview();
     profile.totals();
     profile.draw();
 };
+
+/* reads the list of days to leave out like the server does, to show what is understood while typing (the server decides) */
+profile.parseExcluded = function (text) {
+    text = $.trim(text);
+    var out = {error: null, ranges: [], days: 0};
+    if (text === '') {
+        return out;
+    }
+    var rest = $.trim(text.replace(/\[[^\[\]]*\]/g, '').replace(/[,;\s]/g, ''));
+    if (rest !== '') {
+        out.error = '{{texte hors crochets non compris}} : ' + rest;
+        return out;
+    }
+    var date = '(\\d{4}-\\d{2}-\\d{2}|\\d{2}\\/\\d{2}\\/\\d{4})';
+    var re = new RegExp('^\\s*' + date + '(?:\\s*-\\s*' + date + ')?\\s*$');
+    var iso = function (d) {
+        var v = d.indexOf('/') >= 0 ? d.substr(6, 4) + '-' + d.substr(3, 2) + '-' + d.substr(0, 2) : d;
+        var t = new Date(v + 'T12:00:00Z');
+        return isNaN(t.getTime()) || t.toISOString().substr(0, 10) !== v ? null : v;
+    };
+    var items = text.match(/\[[^\[\]]*\]/g) || [];
+    for (var i = 0; i < items.length; i++) {
+        var m = re.exec(items[i].slice(1, -1));
+        if (!m) {
+            out.error = '{{élément non compris}} : ' + items[i];
+            return out;
+        }
+        var from = iso(m[1]), to = m[2] ? iso(m[2]) : from;
+        if (from === null || to === null) {
+            out.error = '{{date impossible}} : ' + items[i];
+            return out;
+        }
+        if (from > to) {
+            out.error = '{{la fin est avant le début}} : ' + items[i];
+            return out;
+        }
+        out.ranges.push({from: from, to: to});
+        out.days += Math.round((new Date(to + 'T12:00:00Z') - new Date(from + 'T12:00:00Z')) / 86400000) + 1;
+    }
+    return out;
+};
+
+profile.excludedPreview = function () {
+    var r = profile.parseExcluded($('#ta_profileExcluded').val());
+    var box = $('#div_profileExcludedPreview');
+    if (r.error) {
+        box.html('<span class="text-danger"><i class="fas fa-exclamation-triangle"></i> ' + profile.esc(r.error) + '</span>');
+    } else if (r.ranges.length == 0) {
+        box.text('{{Aucun jour écarté.}}');
+    } else {
+        box.html(r.ranges.length + ' {{élément(s)}}, ' + r.days + ' {{jour(s)}} : ' + r.ranges.map(function (x) { return profile.esc(x.from == x.to ? x.from : x.from + ' → ' + x.to); }).join(', '));
+    }
+};
+
+$('#ta_profileExcluded').on('input', function () { profile.excludedPreview(); });
 
 profile.read = function () {
     var cold = [];
@@ -233,7 +290,8 @@ $('#bt_profileSave').on('click', function () {
         fixed: JSON.stringify(input.fixed),
         hc: JSON.stringify(input.hc),
         toleranceFixed: $('#in_profileToleranceFixed').val(),
-        toleranceVariable: $('#in_profileToleranceVariable').val()
+        toleranceVariable: $('#in_profileToleranceVariable').val(),
+        excluded: $('#ta_profileExcluded').val()
     }, function (result) {
         profile.data = result;
         profile.render();
@@ -296,7 +354,8 @@ $('#bt_profileAnalyze').on('click', function () {
         });
         profile.totals();
         var dropped = Object.keys(r.dropped);
-        var html = '<b>' + r.days + '</b> {{jours retenus}}, ' + r.kwh + ' kWh. ' + dropped.length + ' {{jours écartés}}';
+        var byHand = dropped.filter(function (date) { return r.dropped[date] == 'excluded'; }).length;
+        var html = '<b>' + r.days + '</b> {{jours retenus}}, ' + r.kwh + ' kWh. ' + dropped.length + ' {{jours écartés}}' + (byHand ? ' (' + byHand + ' {{écartés à la main}})' : '');
         if (dropped.length > 0) {
             html += ' (' + dropped.slice(0, 12).map(function (date) { return profile.esc(date); }).join(', ') + (dropped.length > 12 ? ' …' : '') + ')';
         }
@@ -357,7 +416,7 @@ profile.analyse = function () {
     profile.footer().apply.prop('disabled', true);
     profile.call({action: 'profilePreview', from: from, to: to, options: JSON.stringify(profile.options())}, function (r) {
         var s = r.summary;
-        var html = '<div class="alert alert-info">' + s.from + ' → ' + s.to + ' · ' + s.days + ' {{jours avec un total}}, ' + s.noTotal + ' {{sans total (ignorés)}}<br>'
+        var html = '<div class="alert alert-info">' + s.from + ' → ' + s.to + ' · ' + s.days + ' {{jours avec un total}}, ' + s.noTotal + ' {{sans total (ignorés)}}, ' + s.excluded + ' {{écartés (saisie)}}<br>'
             + s.write + ' {{équipement(s)-jour(s) réécrits}}, ' + s.keep + ' {{conservés}} ({{vierges}} ' + s.blank + ', {{aberrants}} ' + s.aberrant + ', {{renseignés}} ' + s.filled + ')<br>'
             + '{{Consommation réécrite}} : <strong>' + s.before + '</strong> kWh → <strong>' + s.after + '</strong> kWh</div>';
         html += '<h4>{{Détail de l\'analyse}} <a class="btn btn-default btn-xs" id="bt_profileCopyPreview"><i class="fas fa-copy"></i> {{Copier}}</a></h4><textarea id="ta_profilePreview" class="form-control" rows="10" readonly style="font-family:monospace;font-size:11px"></textarea>';

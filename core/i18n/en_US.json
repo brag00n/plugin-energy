@@ -399,7 +399,16 @@
         "Analyser": "Analyse",
         "Recalcul des consommations avec les profils": "Recalculation of the consumptions with the profiles",
         "Choisissez la plage et les jours à réécrire, puis lancez l'analyse : rien n'est écrit avant « Appliquer ».": "Choose the range and the days to rewrite, then run the analysis: nothing is written before « Apply ».",
-        "Appliquer": "Apply"
+        "Appliquer": "Apply",
+        "texte hors crochets non compris": "text outside the brackets not understood",
+        "élément non compris": "element not understood",
+        "date impossible": "impossible date",
+        "la fin est avant le début": "the end is before the start",
+        "Aucun jour écarté.": "No day left out.",
+        "élément(s)": "element(s)",
+        "jour(s)": "day(s)",
+        "écartés à la main": "left out by hand",
+        "écartés (saisie)": "left out (typed)"
     },
     "plugins\/energy\/core\/class\/energyProfile.class.php": {
         "Mois invalide : ": "Invalid month: ",
@@ -412,7 +421,11 @@
         "saison chaude": "hot season",
         "Plage de dates invalide : ": "Invalid date range: ",
         "Plage de dates trop longue.": "Date range too long.",
-        "Aucun compteur total pour calculer le profil.": "No total counter to compute the profile."
+        "Aucun compteur total pour calculer le profil.": "No total counter to compute the profile.",
+        "Jours à écarter : texte hors crochets non compris : ": "Days to leave out: text outside the brackets not understood: ",
+        "Jours à écarter : élément non compris : ": "Days to leave out: element not understood: ",
+        "Jours à écarter : la fin est avant le début : ": "Days to leave out: the end is before the start: ",
+        "Jours à écarter : date impossible : ": "Days to leave out: impossible date: "
     },
     "plugins\/energy\/plugin_info\/configuration_updateWithProfil.php": {
         "Profils de consommation": "Consumption profiles",
@@ -448,7 +461,9 @@
         "Pour un équipement Variable seulement : sa part, en %, de ce que le total de la journée laisse après les équipements fixes, les jours de la saison froide. 0 = il ne consomme rien cette saison (un radiateur en été). La somme des équipements ne dépasse pas 100 % : le reste est « Non mesuré ».": "For a Variable equipment only: its share, in %, of what the total of the day leaves after the fixed equipments, on the days of the cold season. 0 = it consumes nothing that season (a radiator in summer). The equipments do not add up to more than 100 %: the rest is « Unmeasured ».",
         "La même part, pour les jours de la saison chaude. Un chauffe-eau garde une part en été (les douches) ; un radiateur est à 0.": "The same share, for the days of the hot season. A water heater keeps a share in summer (the showers); a radiator is at 0.",
         "Avec une tarification HP\/HC seulement : la part de la consommation de l'équipement qui tombe en heures creuses (HC) les jours de la saison froide, le reste est en heures pleines (HP). 100 = tout en HC (chauffe-eau asservi aux heures creuses), 50 = moitié-moitié, 0 ou vide = tout en HP. Sans effet avec une tarification fixe : le tarif du jour décide.": "With an HP\/HC tariff only: the share of the consumption of the equipment that falls in off-peak hours (HC) on the days of the cold season, the rest is in peak hours (HP). 100 = all in HC (a water heater tied to the off-peak hours), 50 = half and half, 0 or empty = all in HP. No effect with a fixed tariff: the tariff of the day decides.",
-        "La même part d'heures creuses, pour les jours de la saison chaude. Vide = 0 : tout en heures pleines.": "The same share of off-peak hours, for the days of the hot season. Empty = 0: all in peak hours."
+        "La même part d'heures creuses, pour les jours de la saison chaude. Vide = 0 : tout en heures pleines.": "The same share of off-peak hours, for the days of the hot season. Empty = 0: all in peak hours.",
+        "Jours à écarter": "Days to leave out",
+        "Jours exclus du calcul des profils et du recalcul des consommations (vacances, absences, jours aberrants). Syntaxe : une plage [début-fin], bornes incluses, ou un jour seul [date], séparés par une virgule, un point-virgule ou un retour à la ligne. Dates en AAAA-MM-JJ ou JJ\/MM\/AAAA. Exemple : [2025-08-07-2025-08-20],[2025-10-21-2025-10-31],[2026-04-03]. Le recalcul laisse ces jours tels quels.": "Days left out of the calculation of the profiles and of the recalculation of the consumptions (holidays, absences, aberrant days). Syntax: a range [start-end], both ends included, or a single day [date], separated by a comma, a semicolon or a new line. Dates as YYYY-MM-DD or DD\/MM\/YYYY. Example: [2025-08-07-2025-08-20],[2025-10-21-2025-10-31],[2026-04-03]. The recalculation leaves these days as they are."
     },
     "plugins\/energy\/core\/class\/energyProfileUpdate.class.php": {
         "La plage doit se terminer hier au plus tard : ": "The range must end yesterday at the latest: ",
@@ -461,6 +476,7 @@
         "Rien à réécrire : aucun jour de la plage n'entre dans les cases choisies.": "Nothing to rewrite: no day of the range falls in the boxes chosen.",
         "Équipement introuvable : ": "Equipment not found: ",
         "La sauvegarde n'a pas pu être écrite : le recalcul est annulé, rien n'a été modifié.": "The backup could not be written: the recalculation is cancelled, nothing was changed.",
-        "La sauvegarde relue ne correspond pas : le recalcul est annulé, rien n'a été modifié.": "The backup read back does not match: the recalculation is cancelled, nothing was changed."
+        "La sauvegarde relue ne correspond pas : le recalcul est annulé, rien n'a été modifié.": "The backup read back does not match: the recalculation is cancelled, nothing was changed.",
+        " · écartés (saisie) : ": " · left out (typed): "
     }
 }

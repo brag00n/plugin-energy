@@ -156,10 +156,17 @@ class energyProfileUpdate {
 		}
 		energyCatchup::say($lines, 'info', '[profile] preview: ' . $_from . ' → ' . $_to . ', ' . count($energies) . ' equipment(s) of the profile, rewritten: ' . json_encode($options));
 		$items = array();
-		$summary = array('from' => $_from, 'to' => $_to, 'days' => 0, 'noTotal' => 0, 'blank' => 0, 'aberrant' => 0, 'filled' => 0, 'write' => 0, 'keep' => 0, 'before' => 0, 'after' => 0, 'daysWritten' => 0);
+		$summary = array('from' => $_from, 'to' => $_to, 'days' => 0, 'noTotal' => 0, 'excluded' => 0, 'blank' => 0, 'aberrant' => 0, 'filled' => 0, 'write' => 0, 'keep' => 0, 'before' => 0, 'after' => 0, 'daysWritten' => 0);
 		$daysWritten = array();
 		$written = array();
+		$excluded = energyProfile::excludedDays($_from, $_to);
 		foreach (energyCatchup::daysBetween($_from, $_to) as $date) {
+			if (isset($excluded[$date])) {
+				// a day left out by hand (holidays...) is not touched: not analysed, not written, not in the backup
+				$summary['excluded']++;
+				energyCatchup::say($lines, 'debug', '[profile] ' . $date . ' ignored: day left out by hand');
+				continue;
+			}
 			$total = isset($counter['totals'][$date]) ? $counter['totals'][$date] : 0;
 			if ($total <= 0) {
 				$summary['noTotal']++;
@@ -200,8 +207,8 @@ class energyProfileUpdate {
 		foreach ($energies as $id => $energy) {
 			$weights[$id] = energyProfile::weights($energy, $data[$id], isset($written[$id]) ? $written[$id] : array());
 		}
-		energyCatchup::say($lines, 'info', '[profile] preview done: ' . $summary['days'] . ' day(s) with a total, ' . $summary['noTotal'] . ' without, ' . $summary['write'] . ' equipment day(s) rewritten, ' . $summary['keep'] . ' kept (blank ' . $summary['blank'] . ', aberrant ' . $summary['aberrant'] . ', filled ' . $summary['filled'] . ')');
-		$text = array('ANALYSE DU RECALCUL AVEC LES PROFILS', 'Plage : ' . $_from . ' → ' . $_to, 'Jours avec un total : ' . $summary['days'] . ' · sans total (ignorés) : ' . $summary['noTotal'],
+		energyCatchup::say($lines, 'info', '[profile] preview done: ' . $summary['days'] . ' day(s) with a total, ' . $summary['noTotal'] . ' without, ' . $summary['excluded'] . ' left out by hand, ' . $summary['write'] . ' equipment day(s) rewritten, ' . $summary['keep'] . ' kept (blank ' . $summary['blank'] . ', aberrant ' . $summary['aberrant'] . ', filled ' . $summary['filled'] . ')');
+		$text = array('ANALYSE DU RECALCUL AVEC LES PROFILS', 'Plage : ' . $_from . ' → ' . $_to, 'Jours avec un total : ' . $summary['days'] . ' · sans total (ignorés) : ' . $summary['noTotal'] . ' · écartés (saisie) : ' . $summary['excluded'],
 			'Réécrits : jours vierges ' . ($options['blank'] ? 'oui' : 'non') . ', aberrants ' . ($options['aberrant'] ? 'oui' : 'non') . ', déjà renseignés ' . ($options['filled'] ? 'oui' : 'non'),
 			'Équipements-jours : ' . $summary['write'] . ' réécrits, ' . $summary['keep'] . ' conservés (vierges ' . $summary['blank'] . ', aberrants ' . $summary['aberrant'] . ', renseignés ' . $summary['filled'] . ')',
 			'Consommation réécrite : ' . $summary['before'] . ' kWh → ' . $summary['after'] . ' kWh', '',

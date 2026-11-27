@@ -218,6 +218,8 @@ final class PluginFilesTest extends TestCase {
 		$this->assertStringNotContainsString('<script src="plugins/energy/desktop/js/profile.js', $section);
 		$this->assertStringContainsString('id="bt_profileUpdate"', $section);
 		$this->assertStringContainsString('data-l1key="logProfile"', $screen);
+		$this->assertStringContainsString('id="ta_profileExcluded"', $section);
+		$this->assertStringContainsString("excluded: $('#ta_profileExcluded').val()", $this->read('desktop/js/profile.js'));
 		$js = $this->read('desktop/js/profile.js');
 		$this->assertStringContainsString('global: false', $js);
 		$this->assertStringContainsString('profile.plain(data.result)', $js);

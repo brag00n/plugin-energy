@@ -155,7 +155,7 @@ try {
 			ajax::success(energyProfile::overview());
 		}
 		if (init('action') == 'profileSave') {
-			energyProfile::save(json_decode(init('cold'), true), json_decode(init('profile'), true), json_decode(init('fixed'), true), init('toleranceFixed'), init('toleranceVariable'), json_decode(init('hc'), true));
+			energyProfile::save(json_decode(init('cold'), true), json_decode(init('profile'), true), json_decode(init('fixed'), true), init('toleranceFixed'), init('toleranceVariable'), json_decode(init('hc'), true), init('excluded'));
 			ajax::success(energyProfile::overview());
 		}
 		if (init('action') == 'profileAnalyze') {

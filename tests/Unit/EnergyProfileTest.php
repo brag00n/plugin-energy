@@ -703,6 +703,117 @@ final class EnergyProfileTest extends EnergyTestCase {
 		$this->assertEqualsWithDelta(99.0, $this->read($heater, 'consumptionHc', '2025-11-11'), 0.0001);
 	}
 
+	/* -------------------------------------------------------------- the days to leave out */
+
+	private function excluded(string $text): void {
+		config::$values['energy::profileExcluded'] = $text;
+	}
+
+	public function testTheDaysToLeaveOutAreReadAsRangesAndSingleDays(): void {
+		$this->assertSame(array(), energyProfile::parseExcluded(''));
+		$this->assertSame(array(array('from' => '2025-08-07', 'to' => '2025-08-20'), array('from' => '2025-10-21', 'to' => '2025-10-31'), array('from' => '2026-04-03', 'to' => '2026-04-03')),
+			energyProfile::parseExcluded('[2025-08-07-2025-08-20],[2025-10-21-2025-10-31],[2026-04-03]'));
+	}
+
+	public function testBothDateFormatsSeparatorsAndSpacesAreAccepted(): void {
+		$this->assertSame(array(array('from' => '2025-08-07', 'to' => '2025-08-20'), array('from' => '2026-04-03', 'to' => '2026-04-03'), array('from' => '2026-05-01', 'to' => '2026-05-02')),
+			energyProfile::parseExcluded("[07/08/2025 - 2025-08-20] ;\n [03/04/2026] ,\n[2026-05-01-01/05/2026][2026-05-02]"));
+	}
+
+	public function testOverlappingAndTouchingRangesAreMerged(): void {
+		$this->assertSame(array(array('from' => '2025-08-01', 'to' => '2025-08-31')), energyProfile::parseExcluded('[2025-08-10-2025-08-31],[2025-08-01-2025-08-15],[2025-08-16]'));
+	}
+
+	/** @dataProvider brokenLists */
+	public function testABrokenListIsRefusedAndQuotesTheElement(string $text, string $quoted): void {
+		try {
+			energyProfile::parseExcluded($text);
+			$this->fail('refused');
+		} catch (Exception $e) {
+			$this->assertStringContainsString($quoted, $e->getMessage());
+		}
+	}
+
+	public static function brokenLists(): array {
+		return array(
+			'upside down' => array('[2025-08-20-2025-08-07]', '[2025-08-20-2025-08-07]'),
+			'impossible date' => array('[2025-02-30]', '2025-02-30'),
+			'not a date' => array('[demain]', '[demain]'),
+			'three dates' => array('[2025-08-01-2025-08-02-2025-08-03]', '[2025-08-01-2025-08-02-2025-08-03]'),
+			'outside brackets' => array('[2025-08-01] vacances', 'vacances'),
+		);
+	}
+
+	public function testTheListIsSavedAsTypedAndABrokenOneIsNotSaved(): void {
+		$heater = $this->equipment();
+		$h = (string) $heater->getId();
+		$text = '[2025-08-07-2025-08-20],[2026-04-03]';
+		energyProfile::save(array(11, 12, 1, 2, 3, 4), array('cold' => array($h => '30'), 'hot' => array()), array(), '50', '100', array(), $text);
+		$this->assertSame($text, energyProfile::excludedText());
+		$this->assertTrue(energyProfile::isExcluded('2025-08-07'));
+		$this->assertTrue(energyProfile::isExcluded('2025-08-20'), 'the end is included');
+		$this->assertFalse(energyProfile::isExcluded('2025-08-21'));
+		$this->assertTrue(energyProfile::isExcluded('2026-04-03'));
+		try {
+			energyProfile::save(array(11, 12, 1, 2, 3, 4), array('cold' => array($h => '30'), 'hot' => array()), array(), '50', '100', array(), '[2025-13-01]');
+			$this->fail('refused');
+		} catch (Exception $e) {
+			$this->assertSame($text, energyProfile::excludedText(), 'nothing is lost');
+		}
+	}
+
+	public function testTheExcludedDaysAreLimitedToTheRangeAsked(): void {
+		$this->excluded('[2025-08-07-2025-08-20]');
+		$days = energyProfile::excludedDays('2025-08-18', '2025-08-25');
+		$this->assertSame(array('2025-08-18', '2025-08-19', '2025-08-20'), array_keys($days));
+		$this->assertSame(array(), energyProfile::excludedDays('2025-09-01', '2025-09-05'));
+	}
+
+	public function testTheAnalysisLeavesTheExcludedDaysOut(): void {
+		$heater = $this->equipment();
+		$this->totals(array('2026-11-16' => 40.0, '2026-11-17' => 40.0, '2026-11-18' => 2.0, '2026-11-19' => 2.0, '2026-11-20' => 40.0));
+		foreach (array('2026-11-16' => 10.0, '2026-11-17' => 20.0, '2026-11-18' => 1.0, '2026-11-19' => 1.0, '2026-11-20' => 30.0) as $date => $kwh) {
+			$this->put($heater, 'consumptionTotal', $date, $kwh);
+		}
+		$this->assertSame(5, energyProfile::analyze('2026-11-16', '2026-11-20')['days']);
+		$this->excluded('[2026-11-18-2026-11-19]');
+		$without = energyProfile::analyze('2026-11-16', '2026-11-20');
+		$this->assertSame(3, $without['days']);
+		$this->assertSame(array('2026-11-18' => 'excluded', '2026-11-19' => 'excluded'), $without['dropped']);
+		$this->assertEqualsWithDelta(50.0, $without['shares'][(string) $heater->getId()], 0.01);
+		$this->assertEqualsWithDelta(120.0, $without['kwh'], 0.001);
+	}
+
+	public function testTheRecalculationLeavesTheExcludedDaysAsTheyAre(): void {
+		$heater = $this->equipment();
+		$this->profile(array((string) $heater->getId() => 40));
+		$this->totals(array('2025-11-10' => 50.0, '2025-11-11' => 50.0, '2025-11-12' => 50.0));
+		$this->put($heater, 'consumptionTotal', '2025-11-11', 3.0);
+		$this->excluded('[2025-11-11]');
+		$result = $this->recalc('2025-11-10', '2025-11-12', array('blank' => 1, 'aberrant' => 1, 'filled' => 1));
+		$this->assertTrue($result['ok']);
+		$this->assertEqualsWithDelta(3.0, $this->read($heater, 'consumptionTotal', '2025-11-11'), 0.0001, 'untouched');
+		$this->assertEqualsWithDelta(20.0, $this->read($heater, 'consumptionTotal', '2025-11-10'), 0.001);
+		$this->assertEqualsWithDelta(20.0, $this->read($heater, 'consumptionTotal', '2025-11-12'), 0.001);
+		$preview = energyProfileUpdate::preview('2025-11-10', '2025-11-12', array('blank' => 1));
+		$this->assertSame(1, $preview['summary']['excluded']);
+		$this->assertSame(2, $preview['summary']['days']);
+		$this->assertStringContainsString('écartés (saisie) : 1', $preview['text']);
+	}
+
+	public function testTheOverviewDoesNotCountTheExcludedDays(): void {
+		$this->equipment();
+		$ten = date('Y-m-d', strtotime('-10 day'));
+		$eleven = date('Y-m-d', strtotime('-11 day'));
+		$this->totals(array($ten => 40.0, $eleven => 2.0));
+		$before = energyProfile::overview();
+		$this->excluded('[' . $eleven . ']');
+		$after = energyProfile::overview();
+		$this->assertSame(array_sum(array_column($before['seasons'], 'days')) - 1, array_sum(array_column($after['seasons'], 'days')));
+		$this->assertEqualsWithDelta(40.0, array_sum(array_column($after['seasons'], 'kwh')), 0.01);
+		$this->assertSame('[' . $eleven . ']', $after['excluded']);
+	}
+
 	/* -------------------------------------------------------------- the analysis of a profile */
 
 	public function testTheAnalysisDetectsTheFixedEquipmentAndItsKwh(): void {

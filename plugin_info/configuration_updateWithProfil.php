@@ -42,6 +42,13 @@ if (!isConnect('admin')) {
     </div>
 </div>
 <div class="form-group">
+    <label class="col-sm-2 control-label">{{Jours à écarter}} <sup><i class="fas fa-question-circle tooltips" title="{{Jours exclus du calcul des profils et du recalcul des consommations (vacances, absences, jours aberrants). Syntaxe : une plage [début-fin], bornes incluses, ou un jour seul [date], séparés par une virgule, un point-virgule ou un retour à la ligne. Dates en AAAA-MM-JJ ou JJ/MM/AAAA. Exemple : [2025-08-07-2025-08-20],[2025-10-21-2025-10-31],[2026-04-03]. Le recalcul laisse ces jours tels quels.}}"></i></sup></label>
+    <div class="col-sm-8">
+        <textarea class="form-control input-sm" id="ta_profileExcluded" rows="2" placeholder="[2025-08-07-2025-08-20],[2026-04-03]"></textarea>
+        <div id="div_profileExcludedPreview" class="help-block"></div>
+    </div>
+</div>
+<div class="form-group">
     <label class="col-sm-2 control-label"></label>
     <div class="col-sm-8">
         <a class="btn btn-success btn-sm" id="bt_profileSave"><i class="fas fa-save"></i> {{Enregistrer les profils}}</a>

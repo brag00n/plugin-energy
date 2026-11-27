@@ -246,7 +246,8 @@ class energyProfile {
 	 * @param array $_fixed {id: kWh per day} the equipments of the fixed kind
 	 * @throws Exception on an invalid value
 	 */
-	public static function save($_cold, $_profile, $_fixed, $_toleranceFixed, $_toleranceVariable, $_hc = array()) {
+	public static function save($_cold, $_profile, $_fixed, $_toleranceFixed, $_toleranceVariable, $_hc = array(), $_excluded = '') {
+		self::parseExcluded($_excluded);
 		$cold = array();
 		foreach ((array) $_cold as $month) {
 			if (!is_numeric($month) || intval($month) < 1 || intval($month) > 12) {
@@ -318,9 +319,110 @@ class energyProfile {
 		config::save('profile', json_encode($clean), 'energy');
 		config::save('profileFixedKwh', json_encode($fixed), 'energy');
 		config::save('profileHc', json_encode($hc), 'energy');
+		config::save('profileExcluded', trim(strval($_excluded)), 'energy');
 		config::save('profileToleranceFixed', $tolerances['profileToleranceFixed'], 'energy');
 		config::save('profileToleranceVariable', $tolerances['profileToleranceVariable'], 'energy');
-		self::log('info', 'profile saved: cold months ' . implode(',', $cold) . ', shares ' . json_encode($clean) . ', fixed (kWh/day) ' . json_encode($fixed) . ', HC share ' . json_encode($hc) . ', tolerances ' . json_encode($tolerances));
+		self::log('info', 'profile saved: cold months ' . implode(',', $cold) . ', shares ' . json_encode($clean) . ', fixed (kWh/day) ' . json_encode($fixed) . ', HC share ' . json_encode($hc) . ', tolerances ' . json_encode($tolerances) . ', days left out ' . json_encode(self::excludedRanges()));
+	}
+
+	/* ------------------------------------------------------------------ days to leave out */
+
+	/**
+	 * Reads the list of days to leave out: "[2025-08-07-2025-08-20],[2025-10-21-2025-10-31],[2026-04-03]" or "[07/08/2025-20/08/2025]".
+	 * An element is a range (both ends included) or a single day, between brackets; elements are separated by a comma, a semicolon
+	 * or a new line.
+	 *
+	 * @return array [{from, to}] sorted, the overlapping ones merged
+	 * @throws Exception on an element that is not understood, a date that does not exist or a range upside down
+	 */
+	public static function parseExcluded($_text) {
+		$text = trim(strval($_text));
+		if ($text === '') {
+			return array();
+		}
+		$date = '(\d{4}-\d{2}-\d{2}|\d{2}\/\d{2}\/\d{4})';
+		$rest = preg_replace('/\[[^\[\]]*\]/', '', $text);
+		if (trim($rest, " 	
+,;") !== '') {
+			throw new Exception(__('Jours à écarter : texte hors crochets non compris : ', __FILE__) . trim($rest, " 	
+,;"));
+		}
+		preg_match_all('/\[([^\[\]]*)\]/', $text, $elements);
+		$ranges = array();
+		foreach ($elements[1] as $element) {
+			if (!preg_match('/^\s*' . $date . '(?:\s*-\s*' . $date . ')?\s*$/', $element, $m)) {
+				throw new Exception(__('Jours à écarter : élément non compris : ', __FILE__) . '[' . $element . ']');
+			}
+			$from = self::isoOf($m[1], $element);
+			$to = isset($m[2]) ? self::isoOf($m[2], $element) : $from;
+			if ($from > $to) {
+				throw new Exception(__('Jours à écarter : la fin est avant le début : ', __FILE__) . '[' . $element . ']');
+			}
+			$ranges[] = array('from' => $from, 'to' => $to);
+		}
+		usort($ranges, function ($a, $b) {
+			return strcmp($a['from'], $b['from']);
+		});
+		$merged = array();
+		foreach ($ranges as $range) {
+			$last = count($merged) - 1;
+			if ($last >= 0 && $range['from'] <= date('Y-m-d', strtotime($merged[$last]['to'] . ' +1 day'))) {
+				if ($range['to'] > $merged[$last]['to']) {
+					$merged[$last]['to'] = $range['to'];
+				}
+			} else {
+				$merged[] = $range;
+			}
+		}
+		return $merged;
+	}
+
+	/** YYYY-MM-DD of a date typed as YYYY-MM-DD or DD/MM/YYYY, which must exist. */
+	private static function isoOf($_date, $_element) {
+		$iso = strpos($_date, '/') !== false ? substr($_date, 6, 4) . '-' . substr($_date, 3, 2) . '-' . substr($_date, 0, 2) : $_date;
+		if (!energyCatchup::validDate($iso)) {
+			throw new Exception(__('Jours à écarter : date impossible : ', __FILE__) . $_date . ' [' . $_element . ']');
+		}
+		return $iso;
+	}
+
+	/** The text typed by the user (kept as it is, so that it can be read and copied), "" when there is none. */
+	public static function excludedText() {
+		return trim(strval(config::byKey('profileExcluded', 'energy', '')));
+	}
+
+	/** The ranges to leave out, [] when the saved text can not be read. */
+	public static function excludedRanges() {
+		try {
+			return self::parseExcluded(self::excludedText());
+		} catch (Exception $e) {
+			return array();
+		}
+	}
+
+	public static function isExcluded($_date) {
+		foreach (self::excludedRanges() as $range) {
+			if ($_date >= $range['from'] && $_date <= $range['to']) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** {date => true} of the days to leave out inside a range of dates. */
+	public static function excludedDays($_from, $_to) {
+		$days = array();
+		foreach (self::excludedRanges() as $range) {
+			if ($range['to'] < $_from || $range['from'] > $_to) {
+				continue;
+			}
+			$start = max($range['from'], $_from);
+			$end = min($range['to'], $_to);
+			for ($t = strtotime($start . ' 12:00:00'); date('Y-m-d', $t) <= $end; $t = strtotime('+1 day', $t)) {
+				$days[date('Y-m-d', $t)] = true;
+			}
+		}
+		return $days;
 	}
 
 	/* ------------------------------------------------------------------ reading the days */
@@ -475,13 +577,19 @@ class energyProfile {
 			$series[strval($equipment['id'])] = is_object($cmd) ? self::byDate($cmd->getHistoryEnergy($_from, $_to)) : array();
 		}
 		$totals = array();
+		$dropped = array();
+		$excluded = self::excludedDays($_from, $_to);
 		foreach ($counter['totals'] as $date => $value) {
 			if ($date >= $_from && $date <= $_to && $value > 0) {
+				if (isset($excluded[$date])) {
+					// left out by hand (holidays...): not a day of the house as it lives
+					$dropped[$date] = 'excluded';
+					continue;
+				}
 				$totals[$date] = $value;
 			}
 		}
 		// 1. the days where the equipments add up to more than the total of the house are left out
-		$dropped = array();
 		$kept = array();
 		foreach ($totals as $date => $total) {
 			$sum = 0;
@@ -539,7 +647,7 @@ class energyProfile {
 			}
 			$sum = array_sum($shares);
 		}
-		self::log('info', 'analysis ' . $_from . ' → ' . $_to . ': ' . $days . ' day(s) kept, ' . count($dropped) . ' dropped, ' . round($total, 1) . ' kWh of which ' . round($fixedTotal * $days, 1) . ' fixed, fixed (kWh/day) ' . json_encode($fixed) . ', shares ' . json_encode($shares) . ', HC share ' . json_encode($hc));
+		self::log('info', 'analysis ' . $_from . ' → ' . $_to . ': ' . $days . ' day(s) kept, ' . count($dropped) . ' dropped (' . count($excluded) . ' day(s) left out by hand in the range), ' . round($total, 1) . ' kWh of which ' . round($fixedTotal * $days, 1) . ' fixed, fixed (kWh/day) ' . json_encode($fixed) . ', shares ' . json_encode($shares) . ', HC share ' . json_encode($hc));
 		return array('from' => $_from, 'to' => $_to, 'days' => $days, 'dropped' => $dropped, 'shares' => $shares, 'fixed' => $fixed, 'hc' => $hc, 'unmeasured' => round(max(0, 100 - $sum), 2), 'kwh' => round($total, 2), 'fixedKwh' => round($fixedTotal * $days, 2));
 	}
 
@@ -554,6 +662,9 @@ class energyProfile {
 		$counter = self::counterDays($from, $to);
 		if ($counter !== null) {
 			foreach ($counter['totals'] as $date => $value) {
+				if (self::isExcluded($date)) {
+					continue;
+				}
 				$seasons[self::seasonOf($date)]['days']++;
 				$seasons[self::seasonOf($date)]['kwh'] += $value;
 				$seasons[self::seasonOf($date)]['cost'] += isset($counter['costs'][$date]) ? $counter['costs'][$date] : 0;
@@ -576,6 +687,8 @@ class energyProfile {
 			'toleranceVariable' => self::toleranceVariable() * 100,
 			'from' => $from,
 			'to' => $to,
+			'excluded' => self::excludedText(),
+			'excludedRanges' => self::excludedRanges(),
 		);
 	}
 }
