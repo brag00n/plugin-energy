@@ -205,19 +205,33 @@ final class PluginFilesTest extends TestCase {
 		$this->assertNotFalse($position);
 		$this->assertStringContainsString("isConnect('admin')", substr($ajax, $position, 300));
 		$this->assertStringContainsString("require_once dirname(__FILE__) . '/../class/energy.class.php'", substr($ajax, $position, 500));
+		foreach (array('profilePreview', 'profileStep', 'profileSave', 'profileAnalyze', 'profileGet') as $action) {
+			$this->assertStringContainsString("init('action') == '" . $action . "'", $ajax);
+		}
+		// the whole profile section lives in its own file, included by the page of the configuration
 		$screen = $this->read('plugin_info/configuration.php');
-		$this->assertStringContainsString("include_file('desktop', 'profile', 'js', 'energy')", $screen);
-		$this->assertStringNotContainsString('<script src="plugins/energy/desktop/js/profile.js', $screen);
+		$this->assertStringContainsString("configuration_updateWithProfil.php", $screen);
+		$this->assertStringNotContainsString('id="table_profile"', $screen, 'the profile section is not in configuration.php any more');
+		$section = $this->read('plugin_info/configuration_updateWithProfil.php');
+		$this->assertStringContainsString("isConnect('admin')", $section);
+		$this->assertStringContainsString("include_file('desktop', 'profile', 'js', 'energy')", $section);
+		$this->assertStringNotContainsString('<script src="plugins/energy/desktop/js/profile.js', $section);
+		$this->assertStringContainsString('id="bt_profileUpdate"', $section);
 		$this->assertStringContainsString('data-l1key="logProfile"', $screen);
 		$js = $this->read('desktop/js/profile.js');
 		$this->assertStringContainsString('global: false', $js);
 		$this->assertStringContainsString('profile.plain(data.result)', $js);
-		$this->assertStringContainsString("require_once dirname(__FILE__) . '/energyProfile.class.php'", $this->read('core/class/energy.class.php'));
-		foreach (array('{{Profil}}', '{{Non mesuré}}', '{{Ramener à 100 %}}') as $text) {
-			$this->assertStringContainsString($text, $js . $screen);
-		}
+		$this->assertStringContainsString("action: 'profilePreview'", $js);
+		$this->assertStringContainsString("action: 'profileStep'", $js);
+		$this->assertStringNotContainsString('data-bb-handler', $js);
+		$this->assertStringContainsString('profile.footer().apply.prop', $js);
+		$this->assertStringContainsString("'{{Fermer}}'", $js);
+		$classes = $this->read('core/class/energy.class.php');
+		$this->assertStringContainsString("require_once dirname(__FILE__) . '/energyProfile.class.php'", $classes);
+		$this->assertStringContainsString("require_once dirname(__FILE__) . '/energyProfileUpdate.class.php'", $classes);
+		$this->assertStringNotContainsString('profileDays', $classes, 'the graph is no more changed by the profile');
 		$i18n = $this->json('core/i18n/fr_FR.json');
-		foreach (array('plugins/energy/desktop/js/profile.js', 'plugins/energy/core/class/energyProfile.class.php') as $section) {
+		foreach (array('plugins/energy/desktop/js/profile.js', 'plugins/energy/plugin_info/configuration_updateWithProfil.php', 'plugins/energy/core/class/energyProfile.class.php', 'plugins/energy/core/class/energyProfileUpdate.class.php') as $section) {
 			$this->assertArrayHasKey($section, $i18n);
 			$this->assertNotEmpty($i18n[$section]);
 		}

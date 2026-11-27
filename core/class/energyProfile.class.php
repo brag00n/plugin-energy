@@ -1,44 +1,48 @@
 <?php
 /*
- * CONSUMPTION PROFILE BY EQUIPMENT, PER SEASON
+ * CONSUMPTION PROFILES BY EQUIPMENT, PER SEASON
  *
- * The total counter (Enedis) is the reference, but the equipments measure badly on some days: a counter that is not reset
- * (thousands of kWh in one day), a series frozen at the same value every day, no value at all. And the days imported from
- * Enedis carry no split by equipment. A profile gives the share (in %) of every equipment (the total counter excluded) in the
- * consumption of the house, for two seasons (cold, hot), the rest being "unmeasured". The panel then replaces the days to
- * recalculate by "share x total of the counter of the day". Nothing is written in the history: the replacement is made when the
- * graph is built, so changing the profile changes the graph and nothing has to be restored.
+ * The total counter (Enedis, or the index of the Linky) is the reference of the day, but the equipments measure badly on some days
+ * (a counter that is not reset, a frozen series, no value at all). Two profiles, one per season (cold, hot), say how the total of the
+ * house is shared between the equipments of the plugin (electricity, the total counter excluded). The recalculation that writes them
+ * in the history is in energyProfileUpdate.
  *
- * Days to recalculate, per equipment:
- *   aberrant : the value of the day is above the threshold (setting "profileThreshold", 100 kWh by default)
- *   frozen   : a day imported from Enedis (flag of the total counter) whose value equals the day before
- *   missing  : a day imported from Enedis with no value at all
- * "frozen" and "missing" are only looked for on the imported days, and only when the setting "profileCatchup" is on (default).
- * The user can also give ranges of days to recalculate (setting "profileRanges"): on those days, wherever the counter recorded
- * something, EVERY equipment of the profile is replaced by its share ("manual"), whatever it measured.
+ * Two kinds of equipment in a profile:
+ *   FIXED    a value in kWh per day, the same every day of the season (a fridge, a box)
+ *   VARIABLE a share in % of what is left of the total once the fixed equipments are taken off (a radiator)
+ * What no equipment takes is "unmeasured": fixed + variable + unmeasured = total of the day.
  *
- * Two kinds of equipment. A VARIABLE one (a radiator) takes a share of what the house consumes beyond the fixed ones. A FIXED one
- * (a fridge, a box) draws a constant power: its day is always power x 24 h, whatever the counter says, and the variable ones share
- * what is left of the counter once the fixed ones are taken off. A fixed equipment is never "frozen": a constant value is normal.
+ * Tariff of an equipment (HC / HP / fixed rate): with an HP/HC tariff every equipment has the share of its consumption that falls in the
+ * off-peak hours (HC), per season; the rest is HP. It is typed or deduced from the HC and HP history of the equipment over the range
+ * analysed. With a fixed tariff there is no split: the cost of a day is its consumption x the fixed rate.
  *
  * An equipment is identified by its internal id (eqLogic id), never by its name, which the user can change: the settings hold ids, the
- * name is only read to be displayed. The id of an equipment that no longer exists is ignored (it does not weigh on the profile).
+ * name is only read to be displayed. The id of an equipment that no longer exists is ignored.
+ *
+ * The profile can be computed over a range of characteristic days (analyze): the equipments whose value hardly changes from one day
+ * to the next are the fixed ones (their kWh is the median day), the others are variable and get their share. The result is only a
+ * proposal: it is typed in the table, corrected by hand, then saved.
  *
  * Settings (plugin "energy"):
- *   profileFixed     {"<id>":watts}      the fixed equipments and their constant power
- *   profileSeasons   {"cold":[11,12,1,2,3,4]}   the months of the cold season, all the others are the hot season
- *   profile          {"cold":{"<id>":pct,...},"hot":{...}}   shares in %, the rest is "unmeasured"
- *   profileThreshold kWh above which a day of an equipment is aberrant
- *   profileCatchup   1 = also replace the frozen and missing days of the imported days
- *   profileRanges    [{"from":"YYYY-MM-DD","to":"YYYY-MM-DD"}]   days to recalculate with the profile, both ends included
+ *   profileSeasons            {"cold":[11,12,1,2,3,4]}   the months of the cold season, all the others are the hot season
+ *   profile                   {"cold":{"<id>":pct,...},"hot":{...}}   shares of the variable equipments, in %
+ *   profileFixedKwh           {"<id>":kWh per day}       the fixed equipments
+ *   profileHc                 {"cold":{"<id>":pct},"hot":{...}}   share of the consumption of an equipment that falls in HC, in %
+ *   profileToleranceFixed     % above its value of the profile from which the day of a fixed equipment is aberrant (50 by default)
+ *   profileToleranceVariable  the same for a variable equipment (100 by default)
  */
 class energyProfile {
 
 	const UNMEASURED = 'unmeasured';
 	const CATEGORIES = array('other', 'light', 'multimedia', 'automatism', 'electrical', 'heating');
-	const DEFAULT_THRESHOLD = 100;
-	const FROZEN_EPSILON = 0.01;
 	const DEFAULT_COLD = array(11, 12, 1, 2, 3, 4);
+	const DEFAULT_TOLERANCE_FIXED = 50;
+	const DEFAULT_TOLERANCE_VARIABLE = 100;
+	/** A constant day: within this fraction of the median day. */
+	const FIXED_TOLERANCE = 0.1;
+	/** A fixed equipment: at least this share of its days are constant, on at least this many days. */
+	const FIXED_SHARE = 0.8;
+	const FIXED_MIN_DAYS = 3;
 
 	public static function log($_level, $_message) {
 		if ($_level == 'debug' && !energyLogTypes::enabled('profile')) {
@@ -73,45 +77,33 @@ class energyProfile {
 		return in_array(intval(substr(strval($_date), 5, 2)), self::coldMonths()) ? 'cold' : 'hot';
 	}
 
-	public static function threshold() {
-		$value = floatval(str_replace(',', '.', strval(config::byKey('profileThreshold', 'energy', self::DEFAULT_THRESHOLD))));
-		return $value > 0 ? $value : self::DEFAULT_THRESHOLD;
+	private static function percent($_key, $_default) {
+		$value = str_replace(',', '.', strval(config::byKey($_key, 'energy', $_default)));
+		return is_numeric($value) && floatval($value) >= 0 ? floatval($value) : $_default;
 	}
 
-	public static function replaceCatchup() {
-		return config::byKey('profileCatchup', 'energy', 1) != 0;
+	/** Tolerance of a fixed equipment, as a fraction (50 % = 0.5). */
+	public static function toleranceFixed() {
+		return self::percent('profileToleranceFixed', self::DEFAULT_TOLERANCE_FIXED) / 100;
 	}
 
-	/** The ranges of days typed by the user, sorted: [{from, to}], both ends included. */
-	public static function ranges() {
-		$ranges = array();
-		foreach (energyRates::jsonSetting('profileRanges') as $range) {
-			if (is_array($range) && isset($range['from']) && isset($range['to']) && energyCatchup::validDate($range['from']) && energyCatchup::validDate($range['to']) && $range['from'] <= $range['to']) {
-				$ranges[] = array('from' => $range['from'], 'to' => $range['to']);
+	/** Tolerance of a variable equipment, as a fraction (100 % = 1). */
+	public static function toleranceVariable() {
+		return self::percent('profileToleranceVariable', self::DEFAULT_TOLERANCE_VARIABLE) / 100;
+	}
+
+	/** The equipments of the profile: electricity equipments of the plugin that are not the total counter. */
+	public static function equipments() {
+		$list = array();
+		foreach (energy::byType('energy') as $energy) {
+			if ($energy->getConfiguration('type') == 'electricity' && $energy->getConfiguration('totalCounter') != 1) {
+				$list[] = array('id' => $energy->getId(), 'name' => $energy->getHumanName());
 			}
 		}
-		usort($ranges, function ($a, $b) {
-			return strcmp($a['from'], $b['from']);
-		});
-		return $ranges;
+		return $list;
 	}
 
-	/** The days of the ranges that fall inside [start, end] (a date, or a date and a time): {date => true}. */
-	public static function manualDays($_start, $_end) {
-		$start = substr(strval($_start), 0, 10);
-		$end = substr(strval($_end), 0, 10);
-		$days = array();
-		foreach (self::ranges() as $range) {
-			$from = max($range['from'], $start);
-			$to = min($range['to'], $end);
-			for ($date = $from, $guard = 0; $date <= $to && $guard < energyCatchup::MAX_DAYS; $date = energyCatchup::addDays($date, 1), $guard++) {
-				$days[$date] = true;
-			}
-		}
-		return $days;
-	}
-
-	/** Internal ids (as strings) of the equipments that exist and belong to the profile. */
+	/** Internal ids (as keys) of the equipments that exist and can belong to a profile. */
 	public static function knownIds() {
 		$ids = array();
 		foreach (self::equipments() as $equipment) {
@@ -120,13 +112,13 @@ class energyProfile {
 		return $ids;
 	}
 
-	/** The fixed equipments: {equipment id => constant power in W}. */
+	/** The fixed equipments: {equipment id => kWh per day}. */
 	public static function fixed() {
-		$raw = energyRates::jsonSetting('profileFixed', '{}');
+		$raw = energyRates::jsonSetting('profileFixedKwh', '{}');
 		$known = self::knownIds();
 		$fixed = array();
-		foreach ($raw as $id => $watts) {
-			$number = floatval(str_replace(',', '.', strval($watts)));
+		foreach ($raw as $id => $kwh) {
+			$number = floatval(str_replace(',', '.', strval($kwh)));
 			if ($number > 0 && isset($known[strval($id)])) {
 				$fixed[strval($id)] = $number;
 			}
@@ -134,16 +126,32 @@ class energyProfile {
 		return $fixed;
 	}
 
-	/** kWh per day of every fixed equipment: {id => kWh}. */
-	public static function fixedKwh() {
-		$kwh = array();
-		foreach (self::fixed() as $id => $watts) {
-			$kwh[$id] = $watts * 24 / 1000;
+	/** The share of HC (off-peak hours) in the consumption of each equipment, in %: season => {equipment id => %} (0 = all in HP). */
+	public static function hc() {
+		$raw = energyRates::jsonSetting('profileHc', '{}');
+		$known = self::knownIds();
+		$hc = array('cold' => array(), 'hot' => array());
+		foreach (array('cold', 'hot') as $season) {
+			if (isset($raw[$season]) && is_array($raw[$season])) {
+				foreach ($raw[$season] as $id => $pct) {
+					$number = str_replace(',', '.', strval($pct));
+					if (isset($known[strval($id)]) && is_numeric($number) && floatval($number) >= 0 && floatval($number) <= 100) {
+						$hc[$season][strval($id)] = floatval($number);
+					}
+				}
+			}
 		}
-		return $kwh;
+		return $hc;
 	}
 
-	/** The shares typed by the user: season => {equipment id => %}, only numbers >= 0, the fixed equipments have none. */
+	/** The share of HC of an equipment on a date (the profile of its season), in %, or null when it is not known. */
+	public static function hcShareOf($_date, $_id) {
+		$hc = self::hc();
+		$season = self::seasonOf($_date);
+		return isset($hc[$season][strval($_id)]) ? $hc[$season][strval($_id)] : null;
+	}
+
+	/** The shares typed by the user: season => {equipment id => %}, only numbers > 0, the fixed equipments have none. */
 	public static function profile() {
 		$raw = energyRates::jsonSetting('profile', '{}');
 		$fixed = self::fixed();
@@ -152,8 +160,9 @@ class energyProfile {
 		foreach (array('cold', 'hot') as $season) {
 			if (isset($raw[$season]) && is_array($raw[$season])) {
 				foreach ($raw[$season] as $id => $share) {
-					if ($id !== self::UNMEASURED && isset($known[strval($id)]) && !isset($fixed[strval($id)]) && is_numeric(str_replace(',', '.', strval($share))) && floatval(str_replace(',', '.', strval($share))) > 0) {
-						$profile[$season][strval($id)] = floatval(str_replace(',', '.', strval($share)));
+					$number = str_replace(',', '.', strval($share));
+					if ($id !== self::UNMEASURED && isset($known[strval($id)]) && !isset($fixed[strval($id)]) && is_numeric($number) && floatval($number) > 0) {
+						$profile[$season][strval($id)] = floatval($number);
 					}
 				}
 			}
@@ -161,14 +170,21 @@ class energyProfile {
 		return $profile;
 	}
 
-	/** True when something is configured (a share, a fixed equipment or a range of days): without it the plugin behaves exactly as before. */
+	/** True when a profile is saved (a share or a fixed equipment): nothing can be recalculated without one. */
 	public static function configured() {
 		$profile = self::profile();
-		return count($profile['cold']) + count($profile['hot']) + count(self::fixed()) + count(self::ranges()) > 0;
+		return count($profile['cold']) + count($profile['hot']) + count(self::fixed()) > 0;
+	}
+
+	/** Ids (strings) of the equipments of the profile: the fixed ones and the ones with a share in a season. */
+	public static function profileIds() {
+		$profile = self::profile();
+		$ids = array_merge(array_keys(self::fixed()), array_keys($profile['cold']), array_keys($profile['hot']));
+		return array_values(array_unique(array_map('strval', $ids)));
 	}
 
 	/**
-	 * Shares of a season in %, of what the variable equipments share (the counter minus the fixed equipments), with the remainder as
+	 * Shares of a season in %, of what the variable equipments share (the total minus the fixed equipments), with the remainder as
 	 * "unmeasured" (never below 0, the equipments are scaled down above 100).
 	 */
 	public static function shares($_season) {
@@ -185,26 +201,45 @@ class energyProfile {
 		return $shares;
 	}
 
-	/** The equipments of the profile: electricity equipments of the plugin that are not the total counter. */
-	public static function equipments() {
-		$list = array();
-		foreach (energy::byType('energy') as $energy) {
-			if ($energy->getConfiguration('type') == 'electricity' && $energy->getConfiguration('totalCounter') != 1) {
-				$list[] = array('id' => $energy->getId(), 'name' => $energy->getHumanName());
+	/**
+	 * What every equipment of the profile consumes on a day of total $_total, with the profile of the season of the day. The fixed
+	 * ones take their value (scaled down together when they exceed the total), the variable ones their share of what is left.
+	 * An equipment that has no part in the profile of that season is not in the answer.
+	 *
+	 * @return array {equipment id => kWh}
+	 */
+	public static function dayValues($_date, $_total) {
+		$fixed = self::fixed();
+		$fixedSum = array_sum($fixed);
+		$scale = ($fixedSum > $_total && $fixedSum > 0) ? $_total / $fixedSum : 1;
+		$values = array();
+		foreach ($fixed as $id => $kwh) {
+			$values[strval($id)] = $kwh * $scale;
+		}
+		$rest = max(0, $_total - $fixedSum);
+		foreach (self::shares(self::seasonOf($_date)) as $id => $share) {
+			if ($id !== self::UNMEASURED && $share > 0) {
+				$values[strval($id)] = $share / 100 * $rest;
 			}
 		}
-		return $list;
+		return $values;
+	}
+
+	/** Tolerance of an equipment, as a fraction: its day may exceed its value of the profile by that much. */
+	public static function toleranceOf($_id) {
+		$fixed = self::fixed();
+		return isset($fixed[strval($_id)]) ? self::toleranceFixed() : self::toleranceVariable();
 	}
 
 	/**
 	 * Validates what the user typed and saves it.
 	 *
 	 * @param array $_cold months of the cold season
-	 * @param array $_profile {cold: {id: %}, hot: {id: %}}
-	 * @param array $_fixed {id: constant power in W}, the equipments of the fixed kind
+	 * @param array $_profile {cold: {id: %}, hot: {id: %}} shares of the variable equipments
+	 * @param array $_fixed {id: kWh per day} the equipments of the fixed kind
 	 * @throws Exception on an invalid value
 	 */
-	public static function save($_cold, $_profile, $_threshold, $_replaceCatchup, $_fixed = array(), $_ranges = array()) {
+	public static function save($_cold, $_profile, $_fixed, $_toleranceFixed, $_toleranceVariable, $_hc = array()) {
 		$cold = array();
 		foreach ((array) $_cold as $month) {
 			if (!is_numeric($month) || intval($month) < 1 || intval($month) > 12) {
@@ -213,43 +248,39 @@ class energyProfile {
 			$cold[intval($month)] = intval($month);
 		}
 		sort($cold);
-		$threshold = str_replace(',', '.', strval($_threshold));
-		if (!is_numeric($threshold) || floatval($threshold) < 10 || floatval($threshold) > 100000) {
-			throw new Exception(__('Seuil invalide (10 à 100000 kWh) : ', __FILE__) . strval($_threshold));
+		$tolerances = array();
+		foreach (array('profileToleranceFixed' => $_toleranceFixed, 'profileToleranceVariable' => $_toleranceVariable) as $key => $raw) {
+			$number = str_replace(',', '.', trim(strval($raw)));
+			if (!is_numeric($number) || floatval($number) < 0 || floatval($number) > 1000) {
+				throw new Exception(__('Tolérance invalide (0 à 1000 %) : ', __FILE__) . strval($raw));
+			}
+			$tolerances[$key] = floatval($number);
 		}
 		$known = self::knownIds();
 		$fixed = array();
-		foreach ((array) $_fixed as $id => $watts) {
-			$number = str_replace(',', '.', trim(strval($watts)));
+		foreach ((array) $_fixed as $id => $kwh) {
+			$number = str_replace(',', '.', trim(strval($kwh)));
 			if ($number === '' || !isset($known[strval($id)])) {
 				continue;
 			}
-			if (!is_numeric($number) || floatval($number) <= 0 || floatval($number) > 100000) {
-				throw new Exception(__('Puissance invalide (0 à 100000 W) : ', __FILE__) . strval($watts));
+			if (!is_numeric($number) || floatval($number) <= 0 || floatval($number) > 10000) {
+				throw new Exception(__('Valeur fixe invalide (0 à 10000 kWh par jour) : ', __FILE__) . strval($kwh));
 			}
-			$fixed[strval($id)] = round(floatval($number), 2);
+			$fixed[strval($id)] = round(floatval($number), 3);
 		}
-		$ranges = array();
-		foreach ((array) $_ranges as $index => $range) {
-			$from = isset($range['from']) ? trim(strval($range['from'])) : '';
-			$to = isset($range['to']) ? trim(strval($range['to'])) : '';
-			if ($from === '' && $to === '') {
-				continue;
+		$hc = array('cold' => array(), 'hot' => array());
+		foreach (array('cold', 'hot') as $season) {
+			foreach (isset($_hc[$season]) ? (array) $_hc[$season] : array() as $id => $pct) {
+				$number = str_replace(',', '.', trim(strval($pct)));
+				if ($number === '' || !isset($known[strval($id)])) {
+					continue;
+				}
+				if (!is_numeric($number) || floatval($number) < 0 || floatval($number) > 100) {
+					throw new Exception(__('Part d\'heures creuses invalide (0 à 100 %) : ', __FILE__) . strval($pct));
+				}
+				$hc[$season][strval($id)] = round(floatval($number), 1);
 			}
-			if ($to === '') {
-				$to = $from;
-			}
-			if (!energyCatchup::validDate($from) || !energyCatchup::validDate($to) || $from > $to) {
-				throw new Exception(__('Plage de jours invalide (ligne ', __FILE__) . ($index + 1) . ') : ' . $from . ' → ' . $to);
-			}
-			if (count(energyCatchup::daysBetween($from, $to)) >= energyCatchup::MAX_DAYS) {
-				throw new Exception(__('Plage de dates trop longue.', __FILE__));
-			}
-			$ranges[] = array('from' => $from, 'to' => $to);
 		}
-		usort($ranges, function ($a, $b) {
-			return strcmp($a['from'], $b['from']);
-		});
 		$clean = array('cold' => array(), 'hot' => array());
 		foreach (array('cold', 'hot') as $season) {
 			$sum = 0;
@@ -275,17 +306,17 @@ class energyProfile {
 		}
 		config::save('profileSeasons', json_encode(array('cold' => array_values($cold))), 'energy');
 		config::save('profile', json_encode($clean), 'energy');
-		config::save('profileFixed', json_encode($fixed), 'energy');
-		config::save('profileRanges', json_encode($ranges), 'energy');
-		config::save('profileThreshold', floatval($threshold), 'energy');
-		config::save('profileCatchup', $_replaceCatchup ? 1 : 0, 'energy');
-		self::log('info', 'profile saved: cold months ' . implode(',', $cold) . ', threshold ' . floatval($threshold) . ' kWh, imported days ' . ($_replaceCatchup ? 'replaced' : 'kept') . ', shares ' . json_encode($clean) . ', fixed (W) ' . json_encode($fixed) . ', ranges ' . json_encode($ranges));
+		config::save('profileFixedKwh', json_encode($fixed), 'energy');
+		config::save('profileHc', json_encode($hc), 'energy');
+		config::save('profileToleranceFixed', $tolerances['profileToleranceFixed'], 'energy');
+		config::save('profileToleranceVariable', $tolerances['profileToleranceVariable'], 'energy');
+		self::log('info', 'profile saved: cold months ' . implode(',', $cold) . ', shares ' . json_encode($clean) . ', fixed (kWh/day) ' . json_encode($fixed) . ', HC share ' . json_encode($hc) . ', tolerances ' . json_encode($tolerances));
 	}
 
 	/* ------------------------------------------------------------------ reading the days */
 
 	/** {date => value} of the rows of a history (the rows are [date, value]). */
-	private static function byDate($_rows) {
+	public static function byDate($_rows) {
 		$days = array();
 		foreach ((array) $_rows as $row) {
 			if (isset($row[0]) && isset($row[1]) && is_numeric($row[1])) {
@@ -296,16 +327,12 @@ class energyProfile {
 		return $days;
 	}
 
-	private static function previousDay($_date) {
-		return energyCatchup::addDays($_date, -1);
-	}
-
 	/**
-	 * Reads the total counter: its consumption and cost by day, and the days imported from Enedis.
+	 * The total counter over a range: its consumption and its cost by day, the days before "counterReliableSince" left out.
 	 *
-	 * @return array|null {totals, costs, catchup} (each {date => ...}), null without a total counter
+	 * @return array|null {totals, costs} (each {date => value}), null without a total counter
 	 */
-	private static function counterDays($_start, $_end) {
+	public static function counterDays($_start, $_end) {
 		$targets = energyCatchup::targets();
 		if (count($targets) == 0) {
 			return null;
@@ -330,85 +357,22 @@ class energyProfile {
 			}
 			return $days;
 		};
-		$flags = $read('consumptionCatchup');
-		$catchup = array();
-		foreach ($flags as $date => $flag) {
-			if ($flag >= 1) {
-				$catchup[$date] = true;
-			}
-		}
-		return array('totals' => $read('consumptionTotal'), 'costs' => $read('cost'), 'catchup' => $catchup);
+		return array('totals' => $read('consumptionTotal'), 'costs' => $read('cost'), 'hc' => $read('consumptionHc'), 'hp' => $read('consumptionHp'));
 	}
 
 	/**
-	 * The days of one equipment to recalculate.
+	 * Categories of an equipment and their weights: its measured days (the ones not in $_skip), else its declared lines.
 	 *
-	 * @param array $_series {date => kWh} consumption of the equipment
-	 * @param array|null $_catchup {date => true} imported days, null = look for the frozen days everywhere and not for missing ones
-	 * @param bool $_skipFrozen a fixed equipment: a constant value is normal, it is never frozen
-	 * @return array {date => 'aberrant'|'frozen'|'missing'}
+	 * @param array $_data what energy::getData() returned
+	 * @param array $_skip {date => true} the days that are going to be rewritten
+	 * @return array {category => weight}, the weights add up to 1
 	 */
-	public static function classify($_series, $_catchup, $_threshold, $_replaceCatchup = true, $_skipFrozen = false) {
-		$marks = array();
-		foreach ($_series as $date => $value) {
-			if ($value > $_threshold) {
-				$marks[$date] = 'aberrant';
-			}
-		}
-		if ($_catchup === null) {
-			foreach ($_skipFrozen ? array() : $_series as $date => $value) {
-				$previous = self::previousDay($date);
-				if (!isset($marks[$date]) && $value > 0 && isset($_series[$previous]) && abs($value - $_series[$previous]) < self::FROZEN_EPSILON) {
-					$marks[$date] = 'frozen';
-				}
-			}
-			ksort($marks);
-			return $marks;
-		}
-		if ($_replaceCatchup) {
-			foreach (array_keys($_catchup) as $date) {
-				if (isset($marks[$date])) {
-					continue;
-				}
-				$value = isset($_series[$date]) ? $_series[$date] : 0;
-				if ($value <= 0) {
-					$marks[$date] = 'missing';
-				} elseif (!$_skipFrozen && isset($_series[self::previousDay($date)]) && abs($value - $_series[self::previousDay($date)]) < self::FROZEN_EPSILON) {
-					$marks[$date] = 'frozen';
-				}
-			}
-		}
-		ksort($marks);
-		return $marks;
-	}
-
-	/** The reading context of getGraph(): null (nothing to do) unless an electricity profile is configured and a counter exists. */
-	public static function context($_start, $_end, $_energyType) {
-		if ($_energyType != 'electricity' || !self::configured()) {
-			return null;
-		}
-		$counter = self::counterDays($_start, $_end);
-		if ($counter === null) {
-			return null;
-		}
-		$counter['threshold'] = self::threshold();
-		$counter['replaceCatchup'] = self::replaceCatchup();
-		$counter['fixed'] = self::fixedKwh();
-		$counter['fixedTotal'] = array_sum($counter['fixed']);
-		// the days typed by the user, where the counter recorded something (without it there is nothing to share)
-		$counter['manual'] = array_intersect_key(self::manualDays($_start, $_end), $counter['totals']);
-		return $counter;
-	}
-
-	/* ------------------------------------------------------------------ replacing the days */
-
-	/** Categories of an equipment and their weights: its measured days (the ones not replaced), else its declared lines. */
-	private static function weights($_energy, $_data, $_marks) {
+	public static function weights($_energy, $_data, $_skip) {
 		$sums = array();
 		foreach (self::CATEGORIES as $category) {
 			$sum = 0;
 			foreach (isset($_data[$category]) ? (array) $_data[$category] : array() as $row) {
-				if (isset($row[1]) && is_numeric($row[1]) && !isset($_marks[substr(strval($row[0]), 0, 10)])) {
+				if (isset($row[1]) && is_numeric($row[1]) && !isset($_skip[substr(strval($row[0]), 0, 10)])) {
 					$sum += floatval($row[1]);
 				}
 			}
@@ -433,76 +397,9 @@ class energyProfile {
 		return $sums;
 	}
 
-	/** The rows of a series without the given days. */
-	private static function without($_rows, $_days) {
-		$kept = array();
-		foreach ((array) $_rows as $row) {
-			if (!isset($_days[substr(strval($row[0]), 0, 10)])) {
-				$kept[] = $row;
-			}
-		}
-		return $kept;
-	}
+	/* ------------------------------------------------------------------ analysis */
 
-	/**
-	 * Replaces the days to recalculate of an equipment by its share of the counter of the day.
-	 *
-	 * @param array $_data what energy::getData() returned
-	 * @param array $_context what context() returned
-	 * @return array {data, days} the data adjusted and the replaced days (YYYY-MM-DD => reason)
-	 */
-	public static function adjust($_energy, $_data, $_context) {
-		$id = strval($_energy->getId());
-		$isFixed = isset($_context['fixed'][$id]);
-		$series = self::byDate(isset($_data['consumptionTotal']) ? $_data['consumptionTotal'] : array());
-		$marks = self::classify($series, $_context['catchup'], $_context['threshold'], $_context['replaceCatchup'], $isFixed);
-		foreach (array_keys(isset($_context['manual']) ? $_context['manual'] : array()) as $date) {
-			$marks[$date] = 'manual';
-		}
-		ksort($marks);
-		if (count($marks) == 0) {
-			return array('data' => $_data, 'days' => array());
-		}
-		$weights = self::weights($_energy, $_data, $marks);
-		$data = $_data;
-		foreach (array_merge(array('consumptionTotal', 'cost'), array_keys($weights)) as $key) {
-			$data[$key] = self::without(isset($_data[$key]) ? $_data[$key] : array(), $marks);
-		}
-		foreach (self::CATEGORIES as $category) {
-			if (!isset($weights[$category]) && isset($data[$category])) {
-				$data[$category] = self::without($data[$category], $marks);
-			}
-		}
-		$cache = array('cold' => self::shares('cold'), 'hot' => self::shares('hot'));
-		foreach ($marks as $date => $reason) {
-			$total = isset($_context['totals'][$date]) ? $_context['totals'][$date] : 0;
-			$cost = isset($_context['costs'][$date]) ? $_context['costs'][$date] : 0;
-			if ($isFixed) {
-				// constant power: its day is the same every day, never more than the counter says
-				$value = $total > 0 ? min($_context['fixed'][$id], $total) : $_context['fixed'][$id];
-				$how = 'fixed power';
-			} else {
-				// a variable one takes its share of what the fixed equipments leave of the counter
-				$share = (isset($cache[self::seasonOf($date)][$id]) ? $cache[self::seasonOf($date)][$id] : 0) / 100;
-				$value = $share * max(0, $total - $_context['fixedTotal']);
-				$how = 'share ' . round($share * 100, 2) . ' % of ' . round(max(0, $total - $_context['fixedTotal']), 3);
-			}
-			self::log('debug', 'equipment ' . $id . ' ' . $date . ' (' . $reason . '): ' . (isset($series[$date]) ? $series[$date] : 'no value') . ' kWh replaced by ' . round($value, 3) . ' kWh (' . $how . ', counter ' . $total . ')');
-			if ($value <= 0) {
-				continue;
-			}
-			$data['consumptionTotal'][] = array($date, $value);
-			$data['cost'][] = array($date, $total > 0 ? $value / $total * $cost : 0);
-			foreach ($weights as $category => $weight) {
-				$data[$category][] = array($date, $value * $weight);
-			}
-		}
-		return array('data' => $data, 'days' => $marks);
-	}
-
-	/* ------------------------------------------------------------------ analysis and overview */
-
-	private static function checkRange($_from, $_to) {
+	public static function checkRange($_from, $_to) {
 		if (!energyCatchup::validDate($_from) || !energyCatchup::validDate($_to) || $_from > $_to) {
 			throw new Exception(__('Plage de dates invalide : ', __FILE__) . $_from . ' → ' . $_to);
 		}
@@ -511,32 +408,26 @@ class energyProfile {
 		}
 	}
 
-	/** A constant day: within this fraction of the median day. */
-	const FIXED_TOLERANCE = 0.1;
-	/** A fixed equipment: at least this share of its days are constant, on at least this many days. */
-	const FIXED_SHARE = 0.8;
-	const FIXED_MIN_DAYS = 3;
-
 	/**
 	 * Detects the equipments of the fixed kind over the days of a range: a constant daily value (the same within 10 % on at least
-	 * 80 % of the days it consumed), on at least 3 days and on at least half of the days of the range. Its power is the median day.
+	 * 80 % of the days it consumed), on at least 3 days and on at least half of the days of the range. Its value is the median day.
+	 * A day above the total of the house is not a measure, it is left out.
 	 *
 	 * @param array $_series {id => {date => kWh}}
-	 * @param array $_days the days kept (the counter recorded something)
-	 * @return array {id => watts}
+	 * @param array $_totals {date => total of the house}: the days kept
+	 * @return array {id => kWh per day}
 	 */
-	public static function detectFixed($_series, $_days) {
+	public static function detectFixed($_series, $_totals) {
 		$fixed = array();
-		$threshold = self::threshold();
 		foreach ($_series as $id => $values) {
 			$positive = array();
-			foreach ($_days as $date) {
-				if (isset($values[$date]) && $values[$date] > 0 && $values[$date] <= $threshold) {
+			foreach ($_totals as $date => $total) {
+				if (isset($values[$date]) && $values[$date] > 0 && $values[$date] <= $total) {
 					$positive[] = $values[$date];
 				}
 			}
 			$count = count($positive);
-			if ($count < self::FIXED_MIN_DAYS || $count < count($_days) / 2) {
+			if ($count < self::FIXED_MIN_DAYS || $count < count($_totals) / 2) {
 				continue;
 			}
 			sort($positive);
@@ -548,17 +439,18 @@ class energyProfile {
 				}
 			}
 			if ($constant >= self::FIXED_SHARE * $count) {
-				$fixed[strval($id)] = round($median * 1000 / 24, 1);
+				$fixed[strval($id)] = round($median, 3);
 			}
 		}
 		return $fixed;
 	}
 
 	/**
-	 * Share of every variable equipment in what the counter records beyond the fixed equipments, over the healthy days of a range
-	 * (no equipment aberrant, no variable equipment frozen). The equipments of the fixed kind are DETECTED from their constant days.
+	 * Computes a profile over the days of a range: the fixed equipments are DETECTED (a constant day, their value in kWh), then the
+	 * variable ones get their share of what the total records beyond the fixed ones. The days where the equipments add up to more
+	 * than the total are left out (one of them measured badly, which one is not known).
 	 *
-	 * @return array {from, to, days, dropped{date => reason}, shares{id => %}, fixed{id => W}, unmeasured, kwh, fixedKwh}
+	 * @return array {from, to, days, dropped{date => reason}, shares{id => %}, fixed{id => kWh}, hc{id => % of HC}, unmeasured, kwh, fixedKwh}
 	 */
 	public static function analyze($_from, $_to) {
 		self::checkRange($_from, $_to);
@@ -566,54 +458,63 @@ class energyProfile {
 		if ($counter === null) {
 			throw new Exception(__('Aucun compteur total pour calculer le profil.', __FILE__));
 		}
-		$threshold = self::threshold();
-		$manual = self::manualDays($_from, $_to);
 		$series = array();
 		foreach (self::equipments() as $equipment) {
 			$energy = eqLogic::byId($equipment['id']);
 			$cmd = is_object($energy) ? $energy->getCmd(null, 'consumptionTotal') : null;
 			$series[strval($equipment['id'])] = is_object($cmd) ? self::byDate($cmd->getHistoryEnergy($_from, $_to)) : array();
 		}
-		$counterDays = array();
+		$totals = array();
 		foreach ($counter['totals'] as $date => $value) {
 			if ($date >= $_from && $date <= $_to && $value > 0) {
-				$counterDays[$date] = $value;
+				$totals[$date] = $value;
 			}
 		}
-		// 1. the equipments of the fixed kind, whose constant days are normal and not a frozen series
-		$fixed = self::detectFixed($series, array_keys($counterDays));
-		$fixedTotal = 0;
-		foreach ($fixed as $watts) {
-			$fixedTotal += $watts * 24 / 1000;
+		// 1. the days where the equipments add up to more than the total of the house are left out
+		$dropped = array();
+		$kept = array();
+		foreach ($totals as $date => $total) {
+			$sum = 0;
+			foreach ($series as $values) {
+				$sum += isset($values[$date]) ? $values[$date] : 0;
+			}
+			if ($sum > $total) {
+				$dropped[$date] = 'aberrant';
+			} else {
+				$kept[$date] = $total;
+			}
 		}
-		// 2. the days an equipment measured badly are left out
-		$marks = array();
-		foreach ($series as $id => $values) {
-			$marks[$id] = self::classify($values, null, $threshold, true, isset($fixed[$id]));
-		}
+		// 2. the equipments of the fixed kind, then the share of the others in what the fixed ones leave
+		$fixed = self::detectFixed($series, $kept);
+		$fixedTotal = array_sum($fixed);
 		$sums = array_fill_keys(array_keys(array_diff_key($series, $fixed)), 0);
 		$total = 0;
 		$base = 0;
-		$days = 0;
-		$dropped = array();
-		foreach ($counterDays as $date => $value) {
-			$reason = isset($manual[$date]) ? 'manual' : '';
-			foreach ($marks as $equipmentMarks) {
-				if (isset($equipmentMarks[$date])) {
-					$reason = $equipmentMarks[$date];
-				}
-			}
-			if ($reason !== '') {
-				$dropped[$date] = $reason;
-				continue;
-			}
+		foreach ($kept as $date => $value) {
 			foreach ($sums as $id => $kwh) {
 				$sums[$id] += isset($series[$id][$date]) ? $series[$id][$date] : 0;
 			}
 			$total += $value;
-			// what the variable equipments share: the counter minus the fixed ones
 			$base += max(0, $value - $fixedTotal);
-			$days++;
+		}
+		$days = count($kept);
+		// the share of HC of every equipment, from its own HC and HP history over the days kept (none when it has neither)
+		$hc = array();
+		foreach (array_keys($series) as $id) {
+			$energy = eqLogic::byId($id);
+			$cmdHc = is_object($energy) ? $energy->getCmd(null, 'consumptionHc') : null;
+			$cmdHp = is_object($energy) ? $energy->getCmd(null, 'consumptionHp') : null;
+			$hcDays = is_object($cmdHc) ? self::byDate($cmdHc->getHistoryEnergy($_from, $_to)) : array();
+			$hpDays = is_object($cmdHp) ? self::byDate($cmdHp->getHistoryEnergy($_from, $_to)) : array();
+			$sumHc = 0;
+			$sumHp = 0;
+			foreach ($kept as $date => $value) {
+				$sumHc += isset($hcDays[$date]) ? $hcDays[$date] : 0;
+				$sumHp += isset($hpDays[$date]) ? $hpDays[$date] : 0;
+			}
+			if ($sumHc + $sumHp > 0) {
+				$hc[strval($id)] = round(100 * $sumHc / ($sumHc + $sumHp), 1);
+			}
 		}
 		$shares = array();
 		$sum = 0;
@@ -622,54 +523,14 @@ class energyProfile {
 			$sum += $shares[strval($id)];
 		}
 		if ($sum > 100) {
-			// the equipments declare more than the counter: scaled down, nothing is left unmeasured
+			// the equipments declare more than the total: scaled down, nothing is left unmeasured
 			foreach ($shares as $id => $share) {
 				$shares[$id] = round($share * 100 / $sum, 2);
 			}
 			$sum = array_sum($shares);
 		}
-		self::log('info', 'analysis ' . $_from . ' → ' . $_to . ': ' . $days . ' day(s) kept, ' . count($dropped) . ' dropped, ' . round($total, 1) . ' kWh of which ' . round($fixedTotal * $days, 1) . ' fixed, fixed (W) ' . json_encode($fixed) . ', shares ' . json_encode($shares));
-		return array('from' => $_from, 'to' => $_to, 'days' => $days, 'dropped' => $dropped, 'shares' => $shares, 'fixed' => $fixed, 'unmeasured' => round(max(0, 100 - $sum), 2), 'kwh' => round($total, 2), 'fixedKwh' => round($fixedTotal * $days, 2));
-	}
-
-	/**
-	 * The days that the panel recalculates in a range, by equipment and reason.
-	 *
-	 * @return array {from, to, total, byReason{reason => n}, equipments[{id, name, aberrant[], frozen, missing}]}
-	 */
-	public static function daysToRecalc($_from, $_to) {
-		self::checkRange($_from, $_to);
-		$counter = self::counterDays($_from, $_to);
-		$catchup = $counter === null ? array() : $counter['catchup'];
-		$threshold = self::threshold();
-		$fixed = self::fixedKwh();
-		$manual = $counter === null ? array() : array_intersect_key(self::manualDays($_from, $_to), $counter['totals']);
-		$result = array('from' => $_from, 'to' => $_to, 'total' => 0, 'byReason' => array('aberrant' => 0, 'frozen' => 0, 'missing' => 0, 'manual' => 0), 'equipments' => array());
-		foreach (self::equipments() as $equipment) {
-			$energy = eqLogic::byId($equipment['id']);
-			$cmd = is_object($energy) ? $energy->getCmd(null, 'consumptionTotal') : null;
-			$series = is_object($cmd) ? self::byDate($cmd->getHistoryEnergy($_from, $_to)) : array();
-			$line = array('id' => $equipment['id'], 'name' => $equipment['name'], 'aberrant' => array(), 'frozen' => 0, 'missing' => 0, 'manual' => 0);
-			$marks = self::classify($series, $catchup, $threshold, self::replaceCatchup(), isset($fixed[strval($equipment['id'])]));
-			foreach (array_keys($manual) as $date) {
-				$marks[$date] = 'manual';
-			}
-			ksort($marks);
-			foreach ($marks as $date => $reason) {
-				if ($date < $_from || $date > $_to) {
-					continue;
-				}
-				if ($reason == 'aberrant') {
-					$line['aberrant'][] = $date;
-				} else {
-					$line[$reason]++;
-				}
-				$result['byReason'][$reason]++;
-				$result['total']++;
-			}
-			$result['equipments'][] = $line;
-		}
-		return $result;
+		self::log('info', 'analysis ' . $_from . ' → ' . $_to . ': ' . $days . ' day(s) kept, ' . count($dropped) . ' dropped, ' . round($total, 1) . ' kWh of which ' . round($fixedTotal * $days, 1) . ' fixed, fixed (kWh/day) ' . json_encode($fixed) . ', shares ' . json_encode($shares) . ', HC share ' . json_encode($hc));
+		return array('from' => $_from, 'to' => $_to, 'days' => $days, 'dropped' => $dropped, 'shares' => $shares, 'fixed' => $fixed, 'hc' => $hc, 'unmeasured' => round(max(0, 100 - $sum), 2), 'kwh' => round($total, 2), 'fixedKwh' => round($fixedTotal * $days, 2));
 	}
 
 	/**
@@ -695,13 +556,14 @@ class energyProfile {
 		return array(
 			'equipments' => self::equipments(),
 			'fixed' => self::fixed(),
-			'ranges' => self::ranges(),
+			'hc' => self::hc(),
+			'variableRate' => energyRates::forDate(date('Y-m-d'))['variable'],
 			'cold' => self::coldMonths(),
 			'profile' => array('cold' => self::shares('cold'), 'hot' => self::shares('hot')),
 			'typed' => self::profile(),
 			'seasons' => $seasons,
-			'threshold' => self::threshold(),
-			'replaceCatchup' => self::replaceCatchup() ? 1 : 0,
+			'toleranceFixed' => self::toleranceFixed() * 100,
+			'toleranceVariable' => self::toleranceVariable() * 100,
 			'from' => $from,
 			'to' => $to,
 		);

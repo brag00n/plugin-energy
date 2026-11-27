@@ -24,6 +24,7 @@ require_once dirname(__FILE__) . '/energyCatchup.class.php';
 require_once dirname(__FILE__) . '/energyRates.class.php';
 require_once dirname(__FILE__) . '/energyRateCatchup.class.php';
 require_once dirname(__FILE__) . '/energyProfile.class.php';
+require_once dirname(__FILE__) . '/energyProfileUpdate.class.php';
 
 /* ANOMALY: begin - abnormal consumption detection, self-contained in core/class/anomaly/ (see energyAnomaly.class.php to remove it) */
 foreach (array('Rules', 'Kind', 'Electricity', 'Water', 'Gas', 'Profile', 'Cron', 'Report', '') as $anomalyPart) {
@@ -655,7 +656,6 @@ class energy extends eqLogic {
 			'power' => array(),
 			'temperature' => array(),
 			'catchupDays' => array(),
-			'profileDays' => array(),
 		);
 		if ($_energyType == 'water') {
 			$return['consumptionUnite'] = 'L';
@@ -677,9 +677,6 @@ class energy extends eqLogic {
 		$costSplit = array('hp' => array(), 'hc' => array());
 		// sum of the equipments only (the total counter is not an equipment load), for the estimated total curve
 		$estimatedTotals = array();
-		// profile by equipment: the days an equipment measured badly are replaced by its share of the counter (null = no profile)
-		$profileContext = energyProfile::context($_startTime, $_endTime, $_energyType);
-		$profileDays = array();
 		foreach ($objects as $object) {
 			$return['object'][$object->getName()] = array();
 			$return['power'][$object->getName()] = array();
@@ -716,13 +713,6 @@ class energy extends eqLogic {
 				// One set of SQL queries per equipment: both loops below read the same data
 				$perfStep = self::perfStart();
 				$energyData = $energy->getData($_startTime, $_endTime);
-				if ($profileContext !== null && $energy->getConfiguration('totalCounter') != 1) {
-					$adjusted = energyProfile::adjust($energy, $energyData, $profileContext);
-					$energyData = $adjusted['data'];
-					foreach (array_keys($adjusted['days']) as $profileDay) {
-						$profileDays[$profileDay] = floatval(strtotime($profileDay . ' UTC')) * 1000;
-					}
-				}
 				if ($perfStep !== null) {
 					$perfRows = 0;
 					foreach ($energyData as $perfValues) {
@@ -941,9 +931,6 @@ class energy extends eqLogic {
 			sort($return['cost']);
 			$return['cost'] = array_values($return['cost']);
 		}
-		// days where at least one equipment was replaced by its profile: the panel can tell them apart
-		$return['profileDays'] = array_values($profileDays);
-		sort($return['profileDays']);
 		$return['costDetail'] = self::buildCostDetail($return['cost'], $costSplit);
 		$return['temperature'] = self::outdoorTemperature($_energyType, $_startTime, $_endTime);
 		if ($_energyType == 'electricity') {

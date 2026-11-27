@@ -155,14 +155,18 @@ try {
 			ajax::success(energyProfile::overview());
 		}
 		if (init('action') == 'profileSave') {
-			energyProfile::save(json_decode(init('cold'), true), json_decode(init('profile'), true), init('threshold'), init('replaceCatchup') == 1, json_decode(init('fixed'), true), json_decode(init('ranges'), true));
+			energyProfile::save(json_decode(init('cold'), true), json_decode(init('profile'), true), json_decode(init('fixed'), true), init('toleranceFixed'), init('toleranceVariable'), json_decode(init('hc'), true));
 			ajax::success(energyProfile::overview());
 		}
 		if (init('action') == 'profileAnalyze') {
 			ajax::success(energyProfile::analyze(init('from'), init('to')));
 		}
-		if (init('action') == 'profileDays') {
-			ajax::success(energyProfile::daysToRecalc(init('from'), init('to')));
+		/* the recalculation of the consumptions with the profiles (modal): analysis, then one step per call */
+		if (init('action') == 'profilePreview') {
+			ajax::success(energyProfileUpdate::preview(init('from'), init('to'), json_decode(init('options'), true)));
+		}
+		if (init('action') == 'profileStep') {
+			ajax::success(energyProfileUpdate::runStep(init('id'), init('step'), init('from'), init('to'), json_decode(init('options'), true)));
 		}
 	}
 

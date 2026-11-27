@@ -1,12 +1,22 @@
-/* Consumption profile of the configuration page (see core/class/energyProfile.class.php). The share of every equipment of the
- * house (the total counter excluded) is typed for two seasons, or computed over a range of characteristic days. The panel
- * replaces the days an equipment measured badly by its share of the total counter; nothing is written in the history. */
+/* Consumption profiles of the configuration page (see plugin_info/configuration_updateWithProfil.php, core/class/energyProfile.class.php
+ * and energyProfileUpdate.class.php). Two profiles, one per season: every equipment of the house (the total counter excluded) is either
+ * FIXED (a value in kWh per day) or VARIABLE (a share in % of what the fixed ones leave of the total of the day). They are typed, or
+ * computed over a range of characteristic days, then the button "Recalculer les consommations" opens a modal that rewrites the history
+ * of the equipments with them (analysis, backup, writing, verification). */
 
 var profile = {
     url: 'plugins/energy/core/ajax/energy.ajax.php',
     data: null,
     view: 'year',
-    loaded: false
+    loaded: false,
+    running: false,
+    box: null,
+    steps: {
+        check: '{{Contrôle des paramètres}}',
+        backup: '{{Sauvegarde}}',
+        write: '{{Écriture}}',
+        verify: '{{Vérification}}'
+    }
 };
 
 profile.plain = function (_message) {
@@ -23,7 +33,7 @@ profile.call = function (_data, _success, _error) {
         url: profile.url,
         data: _data,
         dataType: 'json',
-        // no global ajax events: Jeedom's blurred loading screen is useless for a short read
+        // no global ajax events: Jeedom's blurred loading screen would hide the progress of the recalculation
         global: false,
         error: function (request, status, error) {
             if (_error) {
@@ -55,6 +65,16 @@ profile.number = function (_value) {
 
 profile.monthNames = ['{{Janvier}}', '{{Février}}', '{{Mars}}', '{{Avril}}', '{{Mai}}', '{{Juin}}', '{{Juillet}}', '{{Août}}', '{{Septembre}}', '{{Octobre}}', '{{Novembre}}', '{{Décembre}}'];
 
+/* a fixed equipment has a value in kWh per day and no share; a variable one has shares and no value */
+profile.applyKind = function () {
+    var isFixed = $(this).find('.profileKind').val() == 'fixed';
+    $(this).find('.profileKwh').prop('disabled', !isFixed);
+    $(this).find('.profileShare').prop('disabled', isFixed);
+    if (isFixed) {
+        $(this).find('.profileShare').val('');
+    }
+};
+
 profile.render = function () {
     var d = profile.data;
     var months = '';
@@ -67,41 +87,29 @@ profile.render = function () {
         var isFixed = d.fixed[e.id] !== undefined;
         rows += '<tr class="profileRow" data-id="' + profile.esc(e.id) + '"><td>' + profile.esc(e.name) + '</td>';
         rows += '<td><select class="form-control input-sm profileKind" style="width:110px"><option value="variable"' + (isFixed ? '' : ' selected') + '>{{Variable}}</option><option value="fixed"' + (isFixed ? ' selected' : '') + '>{{Fixe}}</option></select></td>';
-        rows += '<td><input type="number" min="0" step="0.1" class="form-control input-sm profileWatts" style="width:90px" value="' + (isFixed ? profile.esc(d.fixed[e.id]) : '') + '"></td>';
+        rows += '<td><input type="number" min="0" step="0.01" class="form-control input-sm profileKwh" style="width:100px" value="' + (isFixed ? profile.esc(d.fixed[e.id]) : '') + '"></td>';
         ['cold', 'hot'].forEach(function (season) {
             var value = d.typed[season][e.id];
             rows += '<td><input type="number" min="0" max="100" step="0.1" class="form-control input-sm profileShare" data-season="' + season + '" style="width:90px" value="' + (value === undefined ? '' : profile.esc(value)) + '"></td>';
         });
+        // the share of the consumption that falls in the off-peak hours (HC): the rest is HP. Only with an HP/HC tariff.
+        ['cold', 'hot'].forEach(function (season) {
+            var value = d.hc[season][e.id];
+            rows += '<td class="profileHcColumn"><input type="number" min="0" max="100" step="0.1" class="form-control input-sm profileHc" data-season="' + season + '" style="width:90px" value="' + (value === undefined ? '' : profile.esc(value)) + '"></td>';
+        });
         rows += '</tr>';
     });
     if (d.equipments.length == 0) {
-        rows = '<tr><td colspan="5">{{Aucun équipement électricité (hors compteur total).}}</td></tr>';
+        rows = '<tr><td colspan="7">{{Aucun équipement électricité (hors compteur total).}}</td></tr>';
     }
     $('#table_profile tbody').html(rows);
+    // with a fixed tariff there is no split in HC and HP: the columns are hidden
+    $('.profileHcColumn').toggle(!!d.variableRate);
     $('#table_profile tbody tr.profileRow').each(profile.applyKind);
-    $('#table_profileRanges tbody').html((d.ranges || []).map(profile.rangeRow).join(''));
-    $('#in_profileThreshold').val(d.threshold);
-    $('#cb_profileCatchup').prop('checked', d.replaceCatchup == 1);
+    $('#in_profileToleranceFixed').val(d.toleranceFixed);
+    $('#in_profileToleranceVariable').val(d.toleranceVariable);
     profile.totals();
     profile.draw();
-};
-
-/* a range of days to recalculate with the profile, both ends included */
-profile.rangeRow = function (_r) {
-    _r = _r || {};
-    return '<tr class="profileRangeRow"><td><input type="date" class="form-control input-sm profileRangeFrom" value="' + profile.esc(_r.from) + '"></td>'
-        + '<td><input type="date" class="form-control input-sm profileRangeTo" value="' + profile.esc(_r.to) + '"></td>'
-        + '<td><a class="btn btn-danger btn-xs bt_profileRangeRemove"><i class="fas fa-minus-circle"></i></a></td></tr>';
-};
-
-/* a fixed equipment has a constant power and no share; a variable one has shares and no power */
-profile.applyKind = function () {
-    var isFixed = $(this).find('.profileKind').val() == 'fixed';
-    $(this).find('.profileWatts').prop('disabled', !isFixed);
-    $(this).find('.profileShare').prop('disabled', isFixed);
-    if (isFixed) {
-        $(this).find('.profileShare').val('');
-    }
 };
 
 profile.read = function () {
@@ -112,8 +120,8 @@ profile.read = function () {
     $('#table_profile tbody tr.profileRow').each(function () {
         var id = $(this).attr('data-id');
         if ($(this).find('.profileKind').val() == 'fixed') {
-            if ($(this).find('.profileWatts').val() !== '') {
-                fixed[id] = $(this).find('.profileWatts').val();
+            if ($(this).find('.profileKwh').val() !== '') {
+                fixed[id] = $(this).find('.profileKwh').val();
             }
             return;
         }
@@ -124,11 +132,16 @@ profile.read = function () {
             }
         });
     });
-    var ranges = [];
-    $('#table_profileRanges tbody tr.profileRangeRow').each(function () {
-        ranges.push({from: $(this).find('.profileRangeFrom').val(), to: $(this).find('.profileRangeTo').val()});
+    var hc = {cold: {}, hot: {}};
+    $('#table_profile tbody tr.profileRow').each(function () {
+        var id = $(this).attr('data-id');
+        $(this).find('.profileHc').each(function () {
+            if ($(this).val() !== '') {
+                hc[$(this).attr('data-season')][id] = $(this).val();
+            }
+        });
     });
-    return {cold: cold, profile: shares, fixed: fixed, ranges: ranges};
+    return {cold: cold, profile: shares, fixed: fixed, hc: hc};
 };
 
 /* sum of every season, and what is left unmeasured */
@@ -140,7 +153,8 @@ profile.totals = function () {
         var left = 100 - sum;
         out += '<td' + (left < -0.05 ? ' class="text-danger"' : '') + '>' + (left < -0.05 ? '{{Dépasse 100 %}} : ' + sum.toFixed(1) : '{{Non mesuré}} : ' + left.toFixed(1)) + ' %</td>';
     });
-    $('#table_profile tfoot').html('<tr><th>{{Reste de la maison}}</th>' + out + '</tr>');
+    $('#table_profile tfoot').html('<tr><th colspan="3">{{Reste de la maison}}</th>' + out + '<td class="profileHcColumn" colspan="2"></td></tr>');
+    $('.profileHcColumn').toggle(!!(profile.data && profile.data.variableRate));
 };
 
 profile.shareOf = function (_season, _id) {
@@ -154,17 +168,16 @@ profile.draw = function () {
     var names = {};
     d.equipments.forEach(function (e) { names[e.id] = e.name; });
     var parts = [];
-    var kwh = 0, cost = 0;
+    var kwh = 0, cost = 0, days = 0;
     var seasons = profile.view == 'year' ? ['cold', 'hot'] : [profile.view];
-    seasons.forEach(function (season) { kwh += d.seasons[season].kwh; cost += d.seasons[season].cost; });
-    // a fixed equipment draws its power every day: its kWh over the days of the period, the variable ones share the rest
-    var fixedKwh = 0, days = 0;
-    seasons.forEach(function (season) { days += d.seasons[season].days; });
-    Object.keys(d.fixed).forEach(function (id) { fixedKwh += d.fixed[id] * 24 / 1000 * days; });
-    fixedKwh = Math.min(fixedKwh, kwh);
-    var variableKwh = kwh - fixedKwh;
-    Object.keys(d.fixed).forEach(function (id) {
-        var own = Math.min(d.fixed[id] * 24 / 1000 * days, kwh);
+    seasons.forEach(function (season) { kwh += d.seasons[season].kwh; cost += d.seasons[season].cost; days += d.seasons[season].days; });
+    // a fixed equipment consumes its value every day: its kWh over the days of the period, the variable ones share the rest
+    var fixedIds = Object.keys(d.fixed);
+    var fixedKwh = 0;
+    fixedIds.forEach(function (id) { fixedKwh += d.fixed[id] * days; });
+    var scale = fixedKwh > kwh && fixedKwh > 0 ? kwh / fixedKwh : 1;
+    fixedIds.forEach(function (id) {
+        var own = d.fixed[id] * days * scale;
         parts.push({id: id, name: names[id] + ' ({{fixe}})', share: kwh > 0 ? own * 100 / kwh : 0, kwh: own, cost: kwh > 0 ? cost * own / kwh : 0});
     });
     var ids = d.equipments.map(function (e) { return e.id; }).filter(function (id) { return d.fixed[id] === undefined; }).concat(['unmeasured']);
@@ -172,8 +185,8 @@ profile.draw = function () {
         var own = 0;
         seasons.forEach(function (season) {
             var seasonKwh = d.seasons[season].kwh;
-            var seasonVariable = Math.max(0, seasonKwh - Math.min(fixedKwh * (kwh > 0 ? seasonKwh / kwh : 0), seasonKwh));
-            own += seasonVariable * profile.shareOf(season, id) / 100;
+            var seasonFixed = Math.min(fixedIds.reduce(function (s, f) { return s + d.fixed[f] * d.seasons[season].days; }, 0), seasonKwh);
+            own += Math.max(0, seasonKwh - seasonFixed) * profile.shareOf(season, id) / 100;
         });
         parts.push({id: id, name: id == 'unmeasured' ? '{{Non mesuré}}' : names[id], share: kwh > 0 ? own * 100 / kwh : 0, kwh: own, cost: kwh > 0 ? cost * own / kwh : 0});
     });
@@ -219,13 +232,13 @@ $('#bt_profileSave').on('click', function () {
         cold: JSON.stringify(input.cold),
         profile: JSON.stringify(input.profile),
         fixed: JSON.stringify(input.fixed),
-        ranges: JSON.stringify(input.ranges),
-        threshold: $('#in_profileThreshold').val(),
-        replaceCatchup: $('#cb_profileCatchup').is(':checked') ? 1 : 0
+        hc: JSON.stringify(input.hc),
+        toleranceFixed: $('#in_profileToleranceFixed').val(),
+        toleranceVariable: $('#in_profileToleranceVariable').val()
     }, function (result) {
         profile.data = result;
         profile.render();
-        $('#div_alert').showAlert({message: '{{Profil enregistré.}}', level: 'success'});
+        $('#div_alert').showAlert({message: '{{Profils enregistrés.}}', level: 'success'});
     });
 });
 
@@ -247,14 +260,6 @@ $('#bt_profileNormalize').on('click', function () {
 
 $('#table_profile').on('input', '.profileShare', profile.totals);
 
-$('#bt_profileRangeAdd').on('click', function () {
-    $('#table_profileRanges tbody').append(profile.rangeRow());
-});
-
-$('#table_profileRanges').on('click', '.bt_profileRangeRemove', function () {
-    $(this).closest('tr').remove();
-});
-
 $('#table_profile').on('change', '.profileKind', function () {
     $(this).closest('tr').each(profile.applyKind);
     profile.totals();
@@ -272,54 +277,183 @@ $('#div_profileView').on('click', 'a', function () {
 $('#bt_profileAnalyze').on('click', function () {
     var season = $('#sel_profileSeason').val();
     profile.call({action: 'profileAnalyze', from: $('#in_profileFrom').val(), to: $('#in_profileTo').val()}, function (r) {
-        // the result fills the fields: it is a proposal, saved only by "Enregistrer le profil". The kind of every equipment is
-        // detected (a constant day = fixed, with its power), and everything stays editable by hand.
+        // the result fills the table: it is a proposal, saved only by "Enregistrer les profils". The kind of every equipment is detected
+        // (a constant day = fixed, with its kWh per day), and everything stays editable by hand.
         $('#table_profile tbody tr.profileRow').each(function () {
             var id = $(this).attr('data-id');
             if (r.fixed[id] !== undefined) {
                 $(this).find('.profileKind').val('fixed');
-                $(this).find('.profileWatts').val(r.fixed[id]);
+                $(this).find('.profileKwh').val(r.fixed[id]);
             } else {
                 $(this).find('.profileKind').val('variable');
-                $(this).find('.profileWatts').val('');
+                $(this).find('.profileKwh').val('');
             }
             $(this).each(profile.applyKind);
             if (r.fixed[id] === undefined) {
                 $(this).find('.profileShare[data-season=' + season + ']').val(r.shares[id] === undefined ? '' : r.shares[id]);
             }
+            // the share of HC deduced from the HC and HP history of the equipment, for the season chosen
+            $(this).find('.profileHc[data-season=' + season + ']').val(r.hc[id] === undefined ? '' : r.hc[id]);
         });
         profile.totals();
-        var html = '<b>' + r.days + '</b> {{jours retenus}}, ' + r.kwh + ' kWh. ' + Object.keys(r.dropped).length + ' {{jours écartés}}';
-        if (Object.keys(r.dropped).length > 0) {
-            html += ' (' + Object.keys(r.dropped).slice(0, 12).map(function (date) { return profile.esc(date) + ' ' + profile.esc(r.dropped[date]); }).join(', ') + (Object.keys(r.dropped).length > 12 ? ' …' : '') + ')';
+        var dropped = Object.keys(r.dropped);
+        var html = '<b>' + r.days + '</b> {{jours retenus}}, ' + r.kwh + ' kWh. ' + dropped.length + ' {{jours écartés}}';
+        if (dropped.length > 0) {
+            html += ' (' + dropped.slice(0, 12).map(function (date) { return profile.esc(date); }).join(', ') + (dropped.length > 12 ? ' …' : '') + ')';
         }
         var fixedIds = Object.keys(r.fixed);
-        html += '. ' + fixedIds.length + ' {{équipement(s) fixe(s) détecté(s)}}' + (fixedIds.length ? ' (' + fixedIds.map(function (id) { return r.fixed[id] + ' W'; }).join(', ') + ', ' + r.fixedKwh + ' kWh)' : '');
-        html += '. {{Non mesuré}} : ' + r.unmeasured + ' %. {{Les types et les champs de la saison choisie sont remplis, modifiables à la main : enregistrez pour les appliquer.}}';
+        html += '. ' + fixedIds.length + ' {{équipement(s) fixe(s) détecté(s)}}' + (fixedIds.length ? ' (' + fixedIds.map(function (id) { return r.fixed[id] + ' kWh/{{jour}}'; }).join(', ') + ')' : '');
+        var hcIds = Object.keys(r.hc);
+        html += '. ' + hcIds.length + ' {{équipement(s) avec une part d\'heures creuses déduite}}';
+        html += '. {{Non mesuré}} : ' + r.unmeasured + ' %. {{Les types, les valeurs, les parts et les heures creuses de la saison choisie sont remplis, modifiables à la main : enregistrez pour les appliquer.}}';
         $('#div_profileAnalysis').html(html);
     }, function (error) {
         $('#div_profileAnalysis').html('<span class="text-danger">' + profile.esc(error) + '</span>');
     });
 });
 
-$('#bt_profileDays').on('click', function () {
-    var d = profile.data;
-    // the whole available history: a year before today is what the page already weighs
-    var from = $('#in_profileFrom').val() || d.from, to = $('#in_profileTo').val() || d.to;
-    profile.call({action: 'profileDays', from: from, to: to}, function (r) {
-        var html = '<b>' + r.total + '</b> {{jours à recalculer}} (' + from + ' → ' + to + ') : ' + r.byReason.aberrant + ' {{aberrants}}, ' + r.byReason.frozen + ' {{figés}}, ' + r.byReason.missing + ' {{absents}}, ' + r.byReason.manual + ' {{saisis}}.';
-        html += '<table class="table table-condensed" style="max-width:700px"><tbody>';
-        r.equipments.forEach(function (e) {
-            if (e.aberrant.length + e.frozen + e.missing + e.manual == 0) {
+/* ------------------------------------------------------------------ the recalculation of the consumptions (modal) */
+
+profile.copy = function (_selector) {
+    $(_selector).focus().select();
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) {}
+    $('#div_profileUpdateAlert').html('<div class="alert alert-' + (ok ? 'success' : 'warning') + '">' + (ok ? '{{Détail copié dans le presse-papiers.}}' : '{{Copie impossible : sélectionnez le texte (Ctrl+C).}}') + '</div>');
+};
+
+/* The buttons of the footer, found by their class (btn-default: close, btn-success: apply) and not by an attribute of the dialog,
+ * which depends on the version of bootbox. */
+profile.footer = function () {
+    var footer = profile.box.find('.modal-footer');
+    return {apply: footer.find('.btn-success'), close: footer.find('.btn-default')};
+};
+
+profile.options = function () {
+    return {
+        blank: $('#cb_profileBlank').is(':checked') ? 1 : 0,
+        aberrant: $('#cb_profileAberrant').is(':checked') ? 1 : 0,
+        filled: $('#cb_profileFilled').is(':checked') ? 1 : 0
+    };
+};
+
+profile.progress = function (_states) {
+    var names = Object.keys(profile.steps);
+    var done = 0;
+    var html = '<ul class="list-unstyled">';
+    names.forEach(function (name) {
+        var state = _states[name] || 'wait';
+        if (state == 'ok') { done++; }
+        var icon = {wait: 'fa-circle text-muted', run: 'fa-spinner fa-spin text-primary', ok: 'fa-check-circle text-success', error: 'fa-times-circle text-danger'}[state];
+        html += '<li><i class="fas ' + icon + '"></i> ' + profile.esc(profile.steps[name]) + '</li>';
+    });
+    var percent = Math.round(100 * done / names.length);
+    return '<div class="progress"><div class="progress-bar' + (_states.failed ? ' progress-bar-danger' : '') + '" style="width:' + percent + '%">' + percent + ' %</div></div>' + html + '</ul>';
+};
+
+/* the analysis: nothing is written, the result says what each equipment holds and what the profile gives it */
+profile.analyse = function () {
+    var from = $('#in_profileUpdateFrom').val(), to = $('#in_profileUpdateTo').val();
+    $('#div_profileUpdateBody').html('<p><i class="fas fa-spinner fa-spin"></i> {{Analyse en cours…}}</p>');
+    $('#div_profileUpdateAlert').empty();
+    profile.footer().apply.prop('disabled', true);
+    profile.call({action: 'profilePreview', from: from, to: to, options: JSON.stringify(profile.options())}, function (r) {
+        var s = r.summary;
+        var html = '<div class="alert alert-info">' + s.from + ' → ' + s.to + ' · ' + s.days + ' {{jours avec un total}}, ' + s.noTotal + ' {{sans total (ignorés)}}<br>'
+            + s.write + ' {{équipement(s)-jour(s) réécrits}}, ' + s.keep + ' {{conservés}} ({{vierges}} ' + s.blank + ', {{aberrants}} ' + s.aberrant + ', {{renseignés}} ' + s.filled + ')<br>'
+            + '{{Consommation réécrite}} : <strong>' + s.before + '</strong> kWh → <strong>' + s.after + '</strong> kWh</div>';
+        html += '<h4>{{Détail de l\'analyse}} <a class="btn btn-default btn-xs" id="bt_profileCopyPreview"><i class="fas fa-copy"></i> {{Copier}}</a></h4><textarea id="ta_profilePreview" class="form-control" rows="10" readonly style="font-family:monospace;font-size:11px"></textarea>';
+        $('#div_profileUpdateBody').html(html);
+        $('#ta_profilePreview').val(r.text);
+        $('#bt_profileCopyPreview').on('click', function () { profile.copy('#ta_profilePreview'); });
+        profile.footer().apply.prop('disabled', s.write == 0);
+    }, function (error) {
+        $('#div_profileUpdateBody').empty();
+        $('#div_profileUpdateAlert').html('<div class="alert alert-danger">' + profile.esc(error) + '</div>');
+    });
+};
+
+profile.apply = function () {
+    profile.running = true;
+    var footer = profile.footer();
+    footer.apply.hide();
+    footer.close.prop('disabled', true);
+    var from = $('#in_profileUpdateFrom').val(), to = $('#in_profileUpdateTo').val();
+    var options = JSON.stringify(profile.options());
+    $('#div_profileUpdateForm').hide();
+    var states = {};
+    var id = '';
+    var show = function () { $('#div_profileUpdateBody').html(profile.progress(states)); };
+    var finish = function (_result, _ok) {
+        profile.running = false;
+        var html = profile.progress(states) + '<div class="alert alert-' + (_ok ? 'success' : 'danger') + '"><strong>' + (_ok ? '{{Recalcul terminé sans erreur.}}' : '{{Recalcul interrompu : restaurez la sauvegarde si besoin.}}') + '</strong><br>' + profile.esc(_result.message) + (_result.backup ? '<br>{{Sauvegarde}} : ' + profile.esc(_result.backup) : '') + '</div>';
+        html += '<h4>{{Rapport}} <a class="btn btn-default btn-xs" id="bt_profileCopyResult"><i class="fas fa-copy"></i> {{Copier}}</a></h4><textarea id="ta_profileResult" class="form-control" rows="10" readonly style="font-family:monospace;font-size:11px"></textarea>';
+        $('#div_profileUpdateBody').html(html);
+        $('#ta_profileResult').val(_result.text);
+        $('#bt_profileCopyResult').on('click', function () { profile.copy('#ta_profileResult'); });
+        // everything went well: the only button left is "Fermer"; after an error, "Annuler" stays
+        footer.apply.hide();
+        footer.close.prop('disabled', false).text(_ok ? '{{Fermer}}' : '{{Annuler}}').show();
+    };
+    var run = function (_step) {
+        states[_step] = 'run';
+        show();
+        profile.call({action: 'profileStep', id: id, step: _step, from: from, to: to, options: options}, function (result) {
+            id = result.id;
+            if (!result.ok) {
+                states[_step] = 'error';
+                states.failed = true;
+                finish(result, false);
                 return;
             }
-            html += '<tr><td>' + profile.esc(e.name) + '</td><td>' + e.aberrant.length + ' {{aberrants}}' + (e.aberrant.length ? ' (' + e.aberrant.slice(0, 8).join(', ') + (e.aberrant.length > 8 ? ' …' : '') + ')' : '') + '</td><td>' + e.frozen + ' {{figés}}</td><td>' + e.missing + ' {{absents}}</td><td>' + e.manual + ' {{saisis}}</td></tr>';
+            states[_step] = 'ok';
+            show();
+            if (result.done) {
+                finish(result, true);
+            } else {
+                run(result.next);
+            }
+        }, function (error) {
+            states[_step] = 'error';
+            states.failed = true;
+            finish({message: error, text: error, backup: null}, false);
         });
-        html += '</tbody></table>';
-        $('#div_profileDays').html(html);
-    }, function (error) {
-        $('#div_profileDays').html('<span class="text-danger">' + profile.esc(error) + '</span>');
+    };
+    run('check');
+};
+
+profile.open = function () {
+    profile.running = false;
+    var yesterday = profile.data && profile.data.to ? profile.data.to : '';
+    var form = '<div id="div_profileUpdateForm" class="form-inline">'
+        + '<p><input class="form-control input-sm" id="in_profileUpdateFrom" type="date" value="' + profile.esc($('#in_profileFrom').val()) + '"/> → '
+        + '<input class="form-control input-sm" id="in_profileUpdateTo" type="date" value="' + profile.esc(yesterday) + '"/></p>'
+        + '<p>{{Jours réécrits}} : '
+        + '<label class="checkbox-inline"><input type="checkbox" id="cb_profileBlank" checked/> {{vierges}}</label> '
+        + '<label class="checkbox-inline"><input type="checkbox" id="cb_profileAberrant" checked/> {{aberrants}}</label> '
+        + '<label class="checkbox-inline"><input type="checkbox" id="cb_profileFilled"/> {{déjà renseignés}}</label> '
+        + '<a class="btn btn-default btn-xs" id="bt_profileUpdateAnalyse"><i class="fas fa-search"></i> {{Analyser}}</a></p>'
+        + '</div>';
+    profile.box = bootbox.dialog({
+        title: '<i class="fas fa-sync"></i> {{Recalcul des consommations avec les profils}}',
+        size: 'large',
+        closeButton: false,
+        message: '<div id="div_profileUpdate">' + form + '<div id="div_profileUpdateAlert"></div><div id="div_profileUpdateBody"><p class="text-muted">{{Choisissez la plage et les jours à réécrire, puis lancez l\'analyse : rien n\'est écrit avant « Appliquer ».}}</p></div></div>',
+        buttons: {
+            cancel: {label: '{{Annuler}}', className: 'btn-default', callback: function () { return !profile.running; }},
+            apply: {label: '{{Appliquer}}', className: 'btn-success', callback: function () { profile.apply(); return false; }}
+        }
     });
+    profile.footer().apply.prop('disabled', true);
+    $('#bt_profileUpdateAnalyse').on('click', profile.analyse);
+    // a change of the range or of the boxes invalidates the analysis: Appliquer waits for a new one
+    $('#div_profileUpdateForm').on('change', 'input', function () { profile.footer().apply.prop('disabled', true); });
+};
+
+$('#bt_profileUpdate').on('click', function () {
+    if (!profile.loaded) {
+        return;
+    }
+    profile.open();
 });
 
 profile.load();

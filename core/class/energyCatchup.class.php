@@ -714,6 +714,11 @@ class energyCatchup {
 				'to' => $data['to'],
 				'days' => count($data['writtenDays']),
 				'kind' => isset($data['kind']) ? $data['kind'] : 'import',
+				'equipments' => isset($data['cmds']) ? count(array_unique(array_map(function ($key) {
+					return strstr($key, ':', true);
+				}, array_filter(array_keys((array) $data['cmds']), function ($key) {
+					return strpos(strval($key), ':') !== false;
+				})))) : 0,
 				'tariff' => isset($data['tariff']) ? $data['tariff'] : null,
 				'hasPeriods' => isset($data['periods']),
 				'rows' => count($data['rows']),

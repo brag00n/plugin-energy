@@ -479,7 +479,10 @@ catchup.loadBackups = function () {
     catchup.call({action: 'catchupInit'}, function (init) {
         var html = '';
         init.backups.forEach(function (b) {
-            var origin = b.kind == 'rates' ? '{{MAJ tarifs}}' : '{{Import Enedis}}';
+            var origin = b.kind == 'rates' ? '{{MAJ tarifs}}' : (b.kind == 'profile' ? '{{Recalcul profil}}' : '{{Import Enedis}}');
+            if (b.kind == 'profile') {
+                origin += '<br><small class="text-muted">' + b.equipments + ' {{équipement(s)}}</small>';
+            }
             if (b.kind == 'rates' && b.tariff) {
                 // the tariffs that made these costs, so that a backup tells what it holds
                 origin += '<br><small class="text-muted">' + (b.tariff.variable ? 'HP ' + b.tariff.rateHp + ' / HC ' + b.tariff.rateHc : '{{tarif fixe}} ' + b.tariff.rate) + ' · {{abo}} ' + b.tariff.subscriptionDaily + (b.tariff.from ? ' · ' + b.tariff.from + ' → ' + (b.tariff.to || '…') : '') + '</small>';
