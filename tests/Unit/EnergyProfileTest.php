@@ -529,7 +529,7 @@ final class EnergyProfileTest extends EnergyTestCase {
 		$this->assertEqualsWithDelta($value * 0.25, $this->read($heater, 'cost', '2025-11-11'), 0.001);
 	}
 
-	public function testWithoutAShareOfHcTheShareOfTheCounterOfTheDayIsUsed(): void {
+	public function testWithAnHpHcTariffWhatIsNotTypedInTheHcColumnIsZeroAndAllInHp(): void {
 		list($heater) = $this->house();
 		$this->hcProfile(array());
 		$this->totals(array('2025-11-11' => 50.0));
@@ -537,16 +537,118 @@ final class EnergyProfileTest extends EnergyTestCase {
 		$this->put($this->counter, 'consumptionHp', '2025-11-11', 30.0);
 		$this->recalc('2025-11-11', '2025-11-11', array('blank' => 1));
 		$value = 0.4 * 48.92;
-		$this->assertEqualsWithDelta($value * 0.4, $this->read($heater, 'consumptionHc', '2025-11-11'), 0.001, '20 of 50 kWh are HC at the counter');
+		$this->assertEqualsWithDelta(0.0, $this->read($heater, 'consumptionHc', '2025-11-11'), 0.0001, 'the counter of the day is not used');
+		$this->assertEqualsWithDelta($value, $this->read($heater, 'consumptionHp', '2025-11-11'), 0.001);
+		$this->assertEqualsWithDelta($value * 0.30, $this->read($heater, 'cost', '2025-11-11'), 0.001, 'the cost is all at the HP rate');
 	}
 
-	public function testWithoutAnyShareOfHcThereIsNoSplitAndTheCostIsTheShareOfTheCounterCost(): void {
-		list($heater) = $this->house();
+	public function testAFixedEquipmentWithNothingTypedForHcIsAllInHpToo(): void {
+		$fridge = $this->equipment('electrical');
+		$heater = $this->equipment();
+		$this->profile(array((string) $heater->getId() => 40), array(), array((string) $fridge->getId() => 1.08));
 		$this->hcProfile(array());
+		config::$values['energy::startHc'] = '22:30';
+		config::$values['energy::endHc'] = '06:30';
 		$this->totals(array('2025-11-11' => 50.0));
 		$this->recalc('2025-11-11', '2025-11-11', array('blank' => 1));
-		$this->assertNull($this->read($heater, 'consumptionHc', '2025-11-11'));
-		$this->assertEqualsWithDelta(0.4 * 48.92 / 50.0 * 10.0, $this->read($heater, 'cost', '2025-11-11'), 0.001);
+		$this->assertEqualsWithDelta(0.0, $this->read($fridge, 'consumptionHc', '2025-11-11'), 0.0001, 'the hours of the tariff are not read');
+		$this->assertEqualsWithDelta(1.08, $this->read($fridge, 'consumptionHp', '2025-11-11'), 0.001);
+	}
+
+	public function testTheTariffOfTheDayDecidesWhetherTheHcColumnsAreRead(): void {
+		$heater = $this->equipment();
+		$id = (string) $heater->getId();
+		$this->profile(array($id => 40));
+		config::$values['energy::profileHc'] = json_encode(array('cold' => array($id => 50), 'hot' => array()));
+		config::$values['energy::rateHp'] = '0.30';
+		config::$values['energy::rateHc'] = '0.20';
+		config::$values['energy::rate'] = '0.25';
+		// the same typed HC share, with an HP/HC tariff for the first period and a fixed one for the second
+		config::$values['energy::rateMode'] = 'variable';
+		config::$values['energy::ratePeriods'] = json_encode(array(array('from' => '2025-11-12', 'to' => '', 'rateHp' => '', 'rateHc' => '', 'rate' => '0.25')));
+		$this->assertTrue(energyRates::forDate('2025-11-11')['variable']);
+		$one = energyProfileUpdate::split('2025-11-11', $id, 10.0, 50.0, 10.0);
+		$this->assertEqualsWithDelta(5.0, $one['hc'], 0.0001, 'HP/HC: the typed share is used');
+		config::$values['energy::rateMode'] = 'fixed';
+		$two = energyProfileUpdate::split('2025-11-12', $id, 10.0, 50.0, 10.0);
+		$this->assertNull($two['hc'], 'fixed tariff: the typed share is not read');
+		$this->assertEqualsWithDelta(2.5, $two['cost'], 0.0001, 'consumption x the fixed rate');
+	}
+
+	public function testAFixedEquipmentTypedWithAShareOfHcUsesIt(): void {
+		$fridge = $this->equipment('electrical');
+		$heater = $this->equipment();
+		$this->profile(array((string) $heater->getId() => 40), array(), array((string) $fridge->getId() => 1.08));
+		$this->hcProfile(array((string) $fridge->getId() => 50), array((string) $fridge->getId() => 50));
+		$this->totals(array('2025-11-11' => 50.0));
+		$this->recalc('2025-11-11', '2025-11-11', array('blank' => 1));
+		$this->assertEqualsWithDelta(0.54, $this->read($fridge, 'consumptionHc', '2025-11-11'), 0.001);
+		$this->assertEqualsWithDelta(0.54, $this->read($fridge, 'consumptionHp', '2025-11-11'), 0.001);
+		$this->assertEqualsWithDelta(0.54 * 0.20 + 0.54 * 0.30, $this->read($fridge, 'cost', '2025-11-11'), 0.001);
+	}
+
+	public function testTheHcTypedForAFixedEquipmentWinsOverTheOffPeakHours(): void {
+		$fridge = $this->equipment('electrical');
+		$heater = $this->equipment();
+		$this->profile(array((string) $heater->getId() => 40), array(), array((string) $fridge->getId() => 1.08));
+		$this->hcProfile(array((string) $fridge->getId() => 50), array((string) $fridge->getId() => 50));
+		config::$values['energy::startHc'] = '22:30';
+		config::$values['energy::endHc'] = '06:30';
+		$this->totals(array('2025-11-11' => 50.0));
+		$this->recalc('2025-11-11', '2025-11-11', array('blank' => 1));
+		$this->assertEqualsWithDelta(0.54, $this->read($fridge, 'consumptionHc', '2025-11-11'), 0.001, '50 % of 1.08, whatever the hours of the tariff');
+		$this->assertEqualsWithDelta(0.54, $this->read($fridge, 'consumptionHp', '2025-11-11'), 0.001);
+	}
+
+	public function testAShareOfZeroIsSavedAndMeansThatTheEquipmentConsumesNothingThatSeason(): void {
+		$heater = $this->equipment();
+		$other = $this->equipment();
+		$h = (string) $heater->getId();
+		$o = (string) $other->getId();
+		energyProfile::save(array(11, 12, 1, 2, 3, 4), array('cold' => array($h => '30', $o => '20'), 'hot' => array($h => '0', $o => '40')), array(), '50', '100');
+		$this->assertSame(0.0, energyProfile::profile()['hot'][$h], 'a 0 is kept, it is not the same as no share');
+		$this->assertEqualsWithDelta(0.0, energyProfile::dayValues('2025-06-11', 50.0)[$h], 0.0001);
+		$this->assertEqualsWithDelta(20.0, energyProfile::dayValues('2025-06-11', 50.0)[$o], 0.0001);
+		$this->totals(array('2025-06-11' => 50.0));
+		$this->put($heater, 'consumptionTotal', '2025-06-11', 6.0);
+		$this->recalc('2025-06-11', '2025-06-11', array('blank' => 1, 'aberrant' => 1));
+		$this->assertEqualsWithDelta(0.0, $this->read($heater, 'consumptionTotal', '2025-06-11'), 0.0001, 'a value of 6 kWh in summer is replaced by 0');
+	}
+
+	public function testAZeroShareOfHcIsAllHp(): void {
+		$heater = $this->equipment();
+		$this->profile(array((string) $heater->getId() => 40));
+		$this->hcProfile(array((string) $heater->getId() => 0));
+		$this->totals(array('2025-11-11' => 50.0));
+		$this->recalc('2025-11-11', '2025-11-11', array('blank' => 1));
+		$this->assertEqualsWithDelta(0.0, $this->read($heater, 'consumptionHc', '2025-11-11'), 0.0001);
+		$this->assertEqualsWithDelta(20.0, $this->read($heater, 'consumptionHp', '2025-11-11'), 0.001);
+	}
+
+	public function testAWaterHeaterThatOnlyRunsInOffPeakHoursIsAllHcAndNoHp(): void {
+		$heater = $this->equipment();
+		$this->profile(array((string) $heater->getId() => 40));
+		$this->hcProfile(array((string) $heater->getId() => 100));
+		$this->totals(array('2025-11-11' => 50.0));
+		$this->recalc('2025-11-11', '2025-11-11', array('blank' => 1));
+		$value = 0.4 * 50;
+		$this->assertEqualsWithDelta($value, $this->read($heater, 'consumptionHc', '2025-11-11'), 0.001);
+		$this->assertEqualsWithDelta(0.0, $this->read($heater, 'consumptionHp', '2025-11-11'), 0.001);
+		$this->assertEqualsWithDelta($value * 0.20, $this->read($heater, 'cost', '2025-11-11'), 0.001);
+	}
+
+	public function testTheAnalysisDeducesTheHcOfAFixedEquipmentToo(): void {
+		$days = array('2026-11-16', '2026-11-17', '2026-11-18');
+		$fridge = $this->equipment('electrical');
+		foreach ($days as $date) {
+			$this->totals(array($date => 40.0));
+			$this->put($fridge, 'consumptionTotal', $date, 1.08);
+			$this->put($fridge, 'consumptionHc', $date, 0.5);
+			$this->put($fridge, 'consumptionHp', $date, 0.58);
+		}
+		$result = energyProfile::analyze('2026-11-16', '2026-11-18');
+		$this->assertArrayHasKey((string) $fridge->getId(), $result['fixed']);
+		$this->assertEqualsWithDelta(100 * 0.5 / 1.08, $result['hc'][(string) $fridge->getId()], 0.1);
 	}
 
 	public function testTheShareOfHcIsThePercentOfTheSeasonOfTheDay(): void {
@@ -563,18 +665,20 @@ final class EnergyProfileTest extends EnergyTestCase {
 		$heater = $this->equipment();
 		$fridge = $this->equipment('electrical');
 		$silent = $this->equipment();
-		foreach (array('2026-11-16', '2026-11-17', '2026-11-18') as $date) {
+		// a heater really varies from one day to the next (else it would be taken for a fixed equipment); 40 % of it is off-peak
+		foreach (array('2026-11-16' => 10.0, '2026-11-17' => 20.0, '2026-11-18' => 5.0) as $date => $kwh) {
 			$this->totals(array($date => 40.0));
-			$this->put($heater, 'consumptionTotal', $date, 10.0);
-			$this->put($heater, 'consumptionHc', $date, 4.0);
-			$this->put($heater, 'consumptionHp', $date, 6.0);
+			$this->put($heater, 'consumptionTotal', $date, $kwh);
+			$this->put($heater, 'consumptionHc', $date, $kwh * 0.4);
+			$this->put($heater, 'consumptionHp', $date, $kwh * 0.6);
 			$this->put($fridge, 'consumptionTotal', $date, 1.08);
 			$this->put($fridge, 'consumptionHc', $date, 0.27);
 			$this->put($fridge, 'consumptionHp', $date, 0.81);
 		}
 		$result = energyProfile::analyze('2026-11-16', '2026-11-18');
 		$this->assertEqualsWithDelta(40.0, $result['hc'][(string) $heater->getId()], 0.1);
-		$this->assertEqualsWithDelta(25.0, $result['hc'][(string) $fridge->getId()], 0.1);
+		$this->assertArrayHasKey((string) $fridge->getId(), $result['fixed']);
+		$this->assertEqualsWithDelta(25.0, $result['hc'][(string) $fridge->getId()], 0.1, 'a fixed equipment keeps the HC deduced from its history');
 		$this->assertArrayNotHasKey((string) $silent->getId(), $result['hc'], 'no HC and no HP history: nothing is deduced');
 	}
 

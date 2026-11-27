@@ -15,9 +15,11 @@
  *
  * A rewritten day replaces the rows of the day by ONE row at 12:00:00 for the consumption, its categories (shared like the
  * equipment shares them over its measured days), its HC and HP and its cost, like the import from Enedis. The tariff of the day decides:
- *  - HP/HC tariff : the equipment has a share of HC in its profile (else the share of HC of the counter that day): its HC and HP are
- *                   written and its cost is HC x rate HC + HP x rate HP;
- *  - fixed tariff : no split, the cost is the consumption x the fixed rate;
+ * The tariff of the day decides alone, whatever is typed in the columns "HC cold season" and "HC hot season":
+ *  - HP/HC tariff : the equipment has the share of HC of its season, and what is not typed is 0 (all in HP), a 0 or a 100 being values
+ *                   (100 for a water heater that only runs in off-peak hours). Its HC and HP are written and its cost is
+ *                   HC x rate HC + HP x rate HP;
+ *  - fixed tariff : there is no split, the columns of HC are not read, and the cost is the consumption x the fixed rate;
  *  - no usable rate (0) : the cost is its share of the cost of the counter of the day.
  *
  * It uses the tools of energyCatchup: the same backups (data/backup, same format, restored from the same list of the configuration
@@ -88,22 +90,17 @@ class energyProfileUpdate {
 	/**
 	 * HC, HP and cost of a rewritten day of an equipment, with the tariff of that day.
 	 *
-	 * @param float|null $_counterHc HC of the total counter that day, to fall back on when the profile has no share of HC
-	 * @return array {cost, hc, hp} (hc and hp are null without a split: fixed tariff, or no share known)
+	 * @return array {cost, hc, hp} (hc and hp are null with a fixed tariff: there is no split)
 	 */
-	public static function split($_date, $_id, $_value, $_total, $_counterCost, $_counterHc, $_counterHp) {
+	public static function split($_date, $_id, $_value, $_total, $_counterCost) {
 		$tariff = energyRates::forDate($_date);
 		$fallback = $_total > 0 ? $_value / $_total * $_counterCost : 0;
 		if (!$tariff['variable']) {
 			return array('cost' => $tariff['rate'] > 0 ? $_value * $tariff['rate'] : $fallback, 'hc' => null, 'hp' => null);
 		}
+		// nothing typed for the season is 0: all of it in HP
 		$pct = energyProfile::hcShareOf($_date, $_id);
-		if ($pct === null && $_counterHc !== null && $_counterHp !== null && $_counterHc + $_counterHp > 0) {
-			$pct = 100 * $_counterHc / ($_counterHc + $_counterHp);
-		}
-		if ($pct === null) {
-			return array('cost' => $fallback, 'hc' => null, 'hp' => null);
-		}
+		$pct = $pct === null ? 0 : $pct;
 		$hc = $_value * $pct / 100;
 		$hp = $_value - $hc;
 		$cost = ($tariff['rateHc'] > 0 || $tariff['rateHp'] > 0) ? $hc * $tariff['rateHc'] + $hp * $tariff['rateHp'] : $fallback;
@@ -191,7 +188,7 @@ class energyProfileUpdate {
 					$daysWritten[$date] = true;
 					$written[$id][$date] = true;
 				}
-				$split = self::split($date, $id, $target, $total, $cost, isset($counter['hc'][$date]) ? $counter['hc'][$date] : null, isset($counter['hp'][$date]) ? $counter['hp'][$date] : null);
+				$split = self::split($date, $id, $target, $total, $cost);
 				$items[] = array('date' => $date, 'id' => $id, 'name' => $names[$id], 'current' => $current, 'target' => $target, 'status' => $status, 'write' => $write, 'total' => $total, 'cost' => $split['cost'], 'hc' => $split['hc'], 'hp' => $split['hp'], 'exceeds' => $exceeds);
 				energyCatchup::say($lines, 'debug', '[profile] ' . $date . ' equipment ' . $id . ' ' . $status . ' now ' . ($current === null ? 'none' : $current) . ' profile ' . round($target, 4) . ' (total ' . $total . ($exceeds ? ', the equipments add up to ' . round($sum, 3) : '') . ') => ' . ($write ? 'rewritten' : 'kept'));
 			}

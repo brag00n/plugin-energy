@@ -14,7 +14,8 @@
  *
  * Tariff of an equipment (HC / HP / fixed rate): with an HP/HC tariff every equipment has the share of its consumption that falls in the
  * off-peak hours (HC), per season; the rest is HP. It is typed or deduced from the HC and HP history of the equipment over the range
- * analysed. With a fixed tariff there is no split: the cost of a day is its consumption x the fixed rate.
+ * analysed, and what is not typed is 0 (all in HP). Which tariff applies is decided by the tariff of the DAY, not by what is typed: with
+ * an HP/HC tariff the columns are used, with a fixed tariff they are never read and the cost of a day is its consumption x the fixed rate.
  *
  * An equipment is identified by its internal id (eqLogic id), never by its name, which the user can change: the settings hold ids, the
  * name is only read to be displayed. The id of an equipment that no longer exists is ignored.
@@ -144,7 +145,7 @@ class energyProfile {
 		return $hc;
 	}
 
-	/** The share of HC of an equipment on a date (the profile of its season), in %, or null when it is not known. */
+	/** The share of HC of an equipment on a date (the profile of its season), in %, or null when nothing is typed (that is 0). */
 	public static function hcShareOf($_date, $_id) {
 		$hc = self::hc();
 		$season = self::seasonOf($_date);
@@ -157,7 +158,7 @@ class energyProfile {
 		return is_object($energy) ? $energy->getHumanName() : strval($_id);
 	}
 
-	/** The shares typed by the user: season => {equipment id => %}, only numbers > 0, the fixed equipments have none. */
+	/** The shares typed by the user: season => {equipment id => %}, a 0 included (it consumes nothing that season), the fixed equipments have none. */
 	public static function profile() {
 		$raw = energyRates::jsonSetting('profile', '{}');
 		$fixed = self::fixed();
@@ -167,7 +168,7 @@ class energyProfile {
 			if (isset($raw[$season]) && is_array($raw[$season])) {
 				foreach ($raw[$season] as $id => $share) {
 					$number = str_replace(',', '.', strval($share));
-					if ($id !== self::UNMEASURED && isset($known[strval($id)]) && !isset($fixed[strval($id)]) && is_numeric($number) && floatval($number) > 0) {
+					if ($id !== self::UNMEASURED && isset($known[strval($id)]) && !isset($fixed[strval($id)]) && is_numeric($number) && floatval($number) >= 0) {
 						$profile[$season][strval($id)] = floatval($number);
 					}
 				}
@@ -224,7 +225,7 @@ class energyProfile {
 		}
 		$rest = max(0, $_total - $fixedSum);
 		foreach (self::shares(self::seasonOf($_date)) as $id => $share) {
-			if ($id !== self::UNMEASURED && $share > 0) {
+			if ($id !== self::UNMEASURED && $share >= 0) {
 				$values[strval($id)] = $share / 100 * $rest;
 			}
 		}
@@ -306,9 +307,8 @@ class energyProfile {
 					throw new Exception(__('Part invalide (0 à 100 %) : ', __FILE__) . strval($share));
 				}
 				$sum += floatval($number);
-				if (floatval($number) > 0) {
-					$clean[$season][strval($id)] = round(floatval($number), 2);
-				}
+				// a 0 is kept: the equipment consumes nothing that season, which is not the same as having no share
+				$clean[$season][strval($id)] = round(floatval($number), 2);
 			}
 			if ($sum > 100.05) {
 				throw new Exception(__('La somme des parts dépasse 100 % : ', __FILE__) . round($sum, 2) . ' % (' . ($season == 'cold' ? __('saison froide', __FILE__) : __('saison chaude', __FILE__)) . ')');
