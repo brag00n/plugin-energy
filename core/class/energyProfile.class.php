@@ -151,6 +151,12 @@ class energyProfile {
 		return isset($hc[$season][strval($_id)]) ? $hc[$season][strval($_id)] : null;
 	}
 
+	/** The name of an equipment, to show in a message (the internal id is what identifies it everywhere else). */
+	public static function nameOf($_id) {
+		$energy = eqLogic::byId($_id);
+		return is_object($energy) ? $energy->getHumanName() : strval($_id);
+	}
+
 	/** The shares typed by the user: season => {equipment id => %}, only numbers > 0, the fixed equipments have none. */
 	public static function profile() {
 		$raw = energyRates::jsonSetting('profile', '{}');
@@ -260,8 +266,12 @@ class energyProfile {
 		$fixed = array();
 		foreach ((array) $_fixed as $id => $kwh) {
 			$number = str_replace(',', '.', trim(strval($kwh)));
-			if ($number === '' || !isset($known[strval($id)])) {
+			if (!isset($known[strval($id)])) {
 				continue;
+			}
+			// an equipment typed as fixed must carry its value: silently dropping it would turn it back into a variable one
+			if ($number === '') {
+				throw new Exception(__('Un équipement fixe a besoin de sa valeur en kWh par jour : ', __FILE__) . self::nameOf($id));
 			}
 			if (!is_numeric($number) || floatval($number) <= 0 || floatval($number) > 10000) {
 				throw new Exception(__('Valeur fixe invalide (0 à 10000 kWh par jour) : ', __FILE__) . strval($kwh));

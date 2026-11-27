@@ -281,6 +281,20 @@ final class EnergyProfileTest extends EnergyTestCase {
 		}
 	}
 
+	public function testAFixedEquipmentWithoutAValueIsRefusedAndNotTurnedIntoAVariableOne(): void {
+		$box = $this->equipment('multimedia');
+		$id = (string) $box->getId();
+		try {
+			energyProfile::save(array(1), array(), array($id => ''), '50', '100');
+			$this->fail('a fixed equipment without a value was accepted');
+		} catch (Exception $e) {
+			$this->assertStringContainsString($box->getHumanName(), $e->getMessage(), 'the message names the equipment');
+		}
+		$this->assertSame(array(), energyProfile::fixed());
+		energyProfile::save(array(1), array(), array($id => '0,3'), '50', '100');
+		$this->assertEqualsWithDelta(0.3, energyProfile::fixed()[$id], 0.0001);
+	}
+
 	public function testTheTolerancesHaveTheirDefaults(): void {
 		$this->assertEqualsWithDelta(0.5, energyProfile::toleranceFixed(), 0.0001);
 		$this->assertEqualsWithDelta(1.0, energyProfile::toleranceVariable(), 0.0001);

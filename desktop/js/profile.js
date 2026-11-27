@@ -120,9 +120,8 @@ profile.read = function () {
     $('#table_profile tbody tr.profileRow').each(function () {
         var id = $(this).attr('data-id');
         if ($(this).find('.profileKind').val() == 'fixed') {
-            if ($(this).find('.profileKwh').val() !== '') {
-                fixed[id] = $(this).find('.profileKwh').val();
-            }
+            // a fixed equipment is always sent, even with no value: the server refuses it with a message instead of losing it
+            fixed[id] = $(this).find('.profileKwh').val();
             return;
         }
         $(this).find('.profileShare').each(function () {
