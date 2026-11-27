@@ -48,6 +48,10 @@ final class EnergyProfileTest extends EnergyTestCase {
 		return $equipment;
 	}
 
+	private function ranges(array $ranges): void {
+		config::$values['energy::profileRanges'] = json_encode($ranges);
+	}
+
 	private function profile(array $cold, array $hot = array(), array $coldMonths = array(11, 12, 1, 2, 3, 4), array $fixed = array()): void {
 		config::$values['energy::profileFixed'] = json_encode($fixed);
 		config::$values['energy::profileSeasons'] = json_encode(array('cold' => $coldMonths));
@@ -348,6 +352,94 @@ final class EnergyProfileTest extends EnergyTestCase {
 		$this->assertFalse(energyProfile::configured());
 		$this->profile(array(), array(), array(11), array((string) $heater->getId() => 45));
 		$this->assertTrue(energyProfile::configured());
+	}
+
+	public function testADayOfATypedRangeIsReplacedWhateverTheEquipmentMeasured(): void {
+		list($total, $heater) = $this->house(
+			array(array('2025-11-10', 50.0), array('2025-11-11', 50.0), array('2025-11-12', 50.0)),
+			array(array('2025-11-10', 20.0), array('2025-11-11', 20.0), array('2025-11-12', 20.0))
+		);
+		$this->profile(array((string) $heater->getId() => 40));
+		$this->ranges(array(array('from' => '2025-11-11', 'to' => '2025-11-12')));
+		$result = energy::getGraph('2025-11-01 00:00:00', '2025-11-30', 1);
+		$days = array();
+		foreach ($result['category']['heating'] as $point) {
+			$days[$point[0]] = $point[1];
+		}
+		$this->assertEqualsWithDelta(20.0, $days[$this->ms('2025-11-10')], 0.001, 'outside the range the measure is kept');
+		$this->assertEqualsWithDelta(20.0, $days[$this->ms('2025-11-11')], 0.001, '40 % of 50 kWh');
+		$this->assertEqualsWithDelta(20.0, $days[$this->ms('2025-11-12')], 0.001);
+		$this->assertSame(array($this->ms('2025-11-11'), $this->ms('2025-11-12')), $result['profileDays']);
+	}
+
+	public function testATypedRangeReallyChangesTheValueOfADay(): void {
+		list($total, $heater) = $this->house(array(array('2025-11-11', 50.0)), array(array('2025-11-11', 3.0)));
+		$this->profile(array((string) $heater->getId() => 40));
+		$this->ranges(array(array('from' => '2025-11-11', 'to' => '2025-11-11')));
+		$context = energyProfile::context('2025-11-01', '2025-11-30', 'electricity');
+		$adjusted = energyProfile::adjust($heater, $heater->getData('2025-11-01', '2025-11-30'), $context);
+		$this->assertSame(array('2025-11-11' => 'manual'), $adjusted['days']);
+		$this->assertEqualsWithDelta(20.0, $adjusted['data']['consumptionTotal'][0][1], 0.001, '3 kWh measured replaced by 40 % of 50');
+	}
+
+	public function testATypedRangeGivesTheFixedEquipmentsTheirPower(): void {
+		list($total, $heater) = $this->house(array(array('2025-11-11', 50.0)), array(array('2025-11-11', 3.0)));
+		$fridge = $this->addEquipment(array(array('2025-11-11', 9.0)));
+		$this->profile(array((string) $heater->getId() => 40), array(), array(11), array((string) $fridge->getId() => 45));
+		$this->ranges(array(array('from' => '2025-11-11', 'to' => '2025-11-11')));
+		$context = energyProfile::context('2025-11-01', '2025-11-30', 'electricity');
+		$adjusted = energyProfile::adjust($fridge, $fridge->getData('2025-11-01', '2025-11-30'), $context);
+		$this->assertEqualsWithDelta(1.08, $adjusted['data']['consumptionTotal'][0][1], 0.001, '45 W x 24 h, not the 9 kWh measured');
+	}
+
+	public function testADayOfARangeWhereTheCounterRecordedNothingKeepsItsMeasures(): void {
+		list($total, $heater) = $this->house(array(array('2025-11-10', 50.0)), array(array('2025-11-10', 20.0), array('2025-11-11', 7.0)));
+		$this->profile(array((string) $heater->getId() => 40));
+		$this->ranges(array(array('from' => '2025-11-11', 'to' => '2025-11-11')));
+		$result = energy::getGraph('2025-11-01 00:00:00', '2025-11-30', 1);
+		$days = array();
+		foreach ($result['category']['heating'] as $point) {
+			$days[$point[0]] = $point[1];
+		}
+		$this->assertEqualsWithDelta(7.0, $days[$this->ms('2025-11-11')], 0.001, 'nothing to share: the measure stays');
+		$this->assertSame(array(), $result['profileDays']);
+	}
+
+	public function testOnlyTheDaysOfTheGraphPeriodAreTaken(): void {
+		$this->profile(array());
+		$this->ranges(array(array('from' => '2025-10-25', 'to' => '2025-11-05')));
+		$this->assertSame(array('2025-11-01', '2025-11-02', '2025-11-03', '2025-11-04', '2025-11-05'), array_keys(energyProfile::manualDays('2025-11-01 00:00:00', '2025-11-30')));
+	}
+
+	public function testRangesAreSavedSortedAndValidated(): void {
+		list($total, $heater) = $this->house(array(array('2025-02-01', 50.0)), array(array('2025-02-01', 20.0)));
+		energyProfile::save(array(1), array(), '100', true, array(), array(
+			array('from' => '2025-11-11', 'to' => '2025-11-12'),
+			array('from' => '', 'to' => ''),
+			array('from' => '2025-02-05', 'to' => ''),
+		));
+		$this->assertSame(array(array('from' => '2025-02-05', 'to' => '2025-02-05'), array('from' => '2025-11-11', 'to' => '2025-11-12')), energyProfile::ranges());
+	}
+
+	public function testARangeThatEndsBeforeItStartsIsRefused(): void {
+		list($total, $heater) = $this->house(array(array('2025-02-01', 50.0)), array(array('2025-02-01', 20.0)));
+		$this->expectException(Exception::class);
+		energyProfile::save(array(1), array(), '100', true, array(), array(array('from' => '2025-11-12', 'to' => '2025-11-11')));
+	}
+
+	public function testARangeAloneIsEnoughToActivateTheProfile(): void {
+		list($total, $heater) = $this->house(array(array('2025-11-11', 50.0)), array(array('2025-11-11', 3.0)));
+		$this->ranges(array(array('from' => '2025-11-11', 'to' => '2025-11-11')));
+		$this->assertTrue(energyProfile::configured());
+	}
+
+	public function testTheListOfTheDaysToRecalculateCountsTheTypedOnes(): void {
+		list($total, $heater) = $this->house(array(array('2025-11-11', 50.0), array('2025-11-12', 50.0)), array(array('2025-11-11', 3.0), array('2025-11-12', 4.0)));
+		$this->ranges(array(array('from' => '2025-11-11', 'to' => '2025-11-12')));
+		$list = energyProfile::daysToRecalc('2025-11-01', '2025-11-30');
+		$this->assertSame(2, $list['byReason']['manual']);
+		$this->assertSame(2, $list['total']);
+		$this->assertSame(2, $list['equipments'][0]['manual']);
 	}
 
 	public function testAnalysisRefusesAnInvalidOrTooLongRange(): void {

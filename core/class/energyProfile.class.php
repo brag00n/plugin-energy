@@ -14,6 +14,8 @@
  *   frozen   : a day imported from Enedis (flag of the total counter) whose value equals the day before
  *   missing  : a day imported from Enedis with no value at all
  * "frozen" and "missing" are only looked for on the imported days, and only when the setting "profileCatchup" is on (default).
+ * The user can also give ranges of days to recalculate (setting "profileRanges"): on those days, wherever the counter recorded
+ * something, EVERY equipment of the profile is replaced by its share ("manual"), whatever it measured.
  *
  * Two kinds of equipment. A VARIABLE one (a radiator) takes a share of what the house consumes beyond the fixed ones. A FIXED one
  * (a fridge, a box) draws a constant power: its day is always power x 24 h, whatever the counter says, and the variable ones share
@@ -28,6 +30,7 @@
  *   profile          {"cold":{"<id>":pct,...},"hot":{...}}   shares in %, the rest is "unmeasured"
  *   profileThreshold kWh above which a day of an equipment is aberrant
  *   profileCatchup   1 = also replace the frozen and missing days of the imported days
+ *   profileRanges    [{"from":"YYYY-MM-DD","to":"YYYY-MM-DD"}]   days to recalculate with the profile, both ends included
  */
 class energyProfile {
 
@@ -77,6 +80,35 @@ class energyProfile {
 
 	public static function replaceCatchup() {
 		return config::byKey('profileCatchup', 'energy', 1) != 0;
+	}
+
+	/** The ranges of days typed by the user, sorted: [{from, to}], both ends included. */
+	public static function ranges() {
+		$ranges = array();
+		foreach (energyRates::jsonSetting('profileRanges') as $range) {
+			if (is_array($range) && isset($range['from']) && isset($range['to']) && energyCatchup::validDate($range['from']) && energyCatchup::validDate($range['to']) && $range['from'] <= $range['to']) {
+				$ranges[] = array('from' => $range['from'], 'to' => $range['to']);
+			}
+		}
+		usort($ranges, function ($a, $b) {
+			return strcmp($a['from'], $b['from']);
+		});
+		return $ranges;
+	}
+
+	/** The days of the ranges that fall inside [start, end] (a date, or a date and a time): {date => true}. */
+	public static function manualDays($_start, $_end) {
+		$start = substr(strval($_start), 0, 10);
+		$end = substr(strval($_end), 0, 10);
+		$days = array();
+		foreach (self::ranges() as $range) {
+			$from = max($range['from'], $start);
+			$to = min($range['to'], $end);
+			for ($date = $from, $guard = 0; $date <= $to && $guard < energyCatchup::MAX_DAYS; $date = energyCatchup::addDays($date, 1), $guard++) {
+				$days[$date] = true;
+			}
+		}
+		return $days;
 	}
 
 	/** Internal ids (as strings) of the equipments that exist and belong to the profile. */
@@ -129,10 +161,10 @@ class energyProfile {
 		return $profile;
 	}
 
-	/** True when at least one equipment has a share: without it the plugin behaves exactly as before. */
+	/** True when something is configured (a share, a fixed equipment or a range of days): without it the plugin behaves exactly as before. */
 	public static function configured() {
 		$profile = self::profile();
-		return count($profile['cold']) + count($profile['hot']) + count(self::fixed()) > 0;
+		return count($profile['cold']) + count($profile['hot']) + count(self::fixed()) + count(self::ranges()) > 0;
 	}
 
 	/**
@@ -172,7 +204,7 @@ class energyProfile {
 	 * @param array $_fixed {id: constant power in W}, the equipments of the fixed kind
 	 * @throws Exception on an invalid value
 	 */
-	public static function save($_cold, $_profile, $_threshold, $_replaceCatchup, $_fixed = array()) {
+	public static function save($_cold, $_profile, $_threshold, $_replaceCatchup, $_fixed = array(), $_ranges = array()) {
 		$cold = array();
 		foreach ((array) $_cold as $month) {
 			if (!is_numeric($month) || intval($month) < 1 || intval($month) > 12) {
@@ -197,6 +229,27 @@ class energyProfile {
 			}
 			$fixed[strval($id)] = round(floatval($number), 2);
 		}
+		$ranges = array();
+		foreach ((array) $_ranges as $index => $range) {
+			$from = isset($range['from']) ? trim(strval($range['from'])) : '';
+			$to = isset($range['to']) ? trim(strval($range['to'])) : '';
+			if ($from === '' && $to === '') {
+				continue;
+			}
+			if ($to === '') {
+				$to = $from;
+			}
+			if (!energyCatchup::validDate($from) || !energyCatchup::validDate($to) || $from > $to) {
+				throw new Exception(__('Plage de jours invalide (ligne ', __FILE__) . ($index + 1) . ') : ' . $from . ' → ' . $to);
+			}
+			if (count(energyCatchup::daysBetween($from, $to)) >= energyCatchup::MAX_DAYS) {
+				throw new Exception(__('Plage de dates trop longue.', __FILE__));
+			}
+			$ranges[] = array('from' => $from, 'to' => $to);
+		}
+		usort($ranges, function ($a, $b) {
+			return strcmp($a['from'], $b['from']);
+		});
 		$clean = array('cold' => array(), 'hot' => array());
 		foreach (array('cold', 'hot') as $season) {
 			$sum = 0;
@@ -223,9 +276,10 @@ class energyProfile {
 		config::save('profileSeasons', json_encode(array('cold' => array_values($cold))), 'energy');
 		config::save('profile', json_encode($clean), 'energy');
 		config::save('profileFixed', json_encode($fixed), 'energy');
+		config::save('profileRanges', json_encode($ranges), 'energy');
 		config::save('profileThreshold', floatval($threshold), 'energy');
 		config::save('profileCatchup', $_replaceCatchup ? 1 : 0, 'energy');
-		self::log('info', 'profile saved: cold months ' . implode(',', $cold) . ', threshold ' . floatval($threshold) . ' kWh, imported days ' . ($_replaceCatchup ? 'replaced' : 'kept') . ', shares ' . json_encode($clean) . ', fixed (W) ' . json_encode($fixed));
+		self::log('info', 'profile saved: cold months ' . implode(',', $cold) . ', threshold ' . floatval($threshold) . ' kWh, imported days ' . ($_replaceCatchup ? 'replaced' : 'kept') . ', shares ' . json_encode($clean) . ', fixed (W) ' . json_encode($fixed) . ', ranges ' . json_encode($ranges));
 	}
 
 	/* ------------------------------------------------------------------ reading the days */
@@ -341,6 +395,8 @@ class energyProfile {
 		$counter['replaceCatchup'] = self::replaceCatchup();
 		$counter['fixed'] = self::fixedKwh();
 		$counter['fixedTotal'] = array_sum($counter['fixed']);
+		// the days typed by the user, where the counter recorded something (without it there is nothing to share)
+		$counter['manual'] = array_intersect_key(self::manualDays($_start, $_end), $counter['totals']);
 		return $counter;
 	}
 
@@ -400,6 +456,10 @@ class energyProfile {
 		$isFixed = isset($_context['fixed'][$id]);
 		$series = self::byDate(isset($_data['consumptionTotal']) ? $_data['consumptionTotal'] : array());
 		$marks = self::classify($series, $_context['catchup'], $_context['threshold'], $_context['replaceCatchup'], $isFixed);
+		foreach (array_keys(isset($_context['manual']) ? $_context['manual'] : array()) as $date) {
+			$marks[$date] = 'manual';
+		}
+		ksort($marks);
 		if (count($marks) == 0) {
 			return array('data' => $_data, 'days' => array());
 		}
@@ -507,6 +567,7 @@ class energyProfile {
 			throw new Exception(__('Aucun compteur total pour calculer le profil.', __FILE__));
 		}
 		$threshold = self::threshold();
+		$manual = self::manualDays($_from, $_to);
 		$series = array();
 		foreach (self::equipments() as $equipment) {
 			$energy = eqLogic::byId($equipment['id']);
@@ -536,7 +597,7 @@ class energyProfile {
 		$days = 0;
 		$dropped = array();
 		foreach ($counterDays as $date => $value) {
-			$reason = '';
+			$reason = isset($manual[$date]) ? 'manual' : '';
 			foreach ($marks as $equipmentMarks) {
 				if (isset($equipmentMarks[$date])) {
 					$reason = $equipmentMarks[$date];
@@ -582,13 +643,19 @@ class energyProfile {
 		$catchup = $counter === null ? array() : $counter['catchup'];
 		$threshold = self::threshold();
 		$fixed = self::fixedKwh();
-		$result = array('from' => $_from, 'to' => $_to, 'total' => 0, 'byReason' => array('aberrant' => 0, 'frozen' => 0, 'missing' => 0), 'equipments' => array());
+		$manual = $counter === null ? array() : array_intersect_key(self::manualDays($_from, $_to), $counter['totals']);
+		$result = array('from' => $_from, 'to' => $_to, 'total' => 0, 'byReason' => array('aberrant' => 0, 'frozen' => 0, 'missing' => 0, 'manual' => 0), 'equipments' => array());
 		foreach (self::equipments() as $equipment) {
 			$energy = eqLogic::byId($equipment['id']);
 			$cmd = is_object($energy) ? $energy->getCmd(null, 'consumptionTotal') : null;
 			$series = is_object($cmd) ? self::byDate($cmd->getHistoryEnergy($_from, $_to)) : array();
-			$line = array('id' => $equipment['id'], 'name' => $equipment['name'], 'aberrant' => array(), 'frozen' => 0, 'missing' => 0);
-			foreach (self::classify($series, $catchup, $threshold, self::replaceCatchup(), isset($fixed[strval($equipment['id'])])) as $date => $reason) {
+			$line = array('id' => $equipment['id'], 'name' => $equipment['name'], 'aberrant' => array(), 'frozen' => 0, 'missing' => 0, 'manual' => 0);
+			$marks = self::classify($series, $catchup, $threshold, self::replaceCatchup(), isset($fixed[strval($equipment['id'])]));
+			foreach (array_keys($manual) as $date) {
+				$marks[$date] = 'manual';
+			}
+			ksort($marks);
+			foreach ($marks as $date => $reason) {
 				if ($date < $_from || $date > $_to) {
 					continue;
 				}
@@ -628,6 +695,7 @@ class energyProfile {
 		return array(
 			'equipments' => self::equipments(),
 			'fixed' => self::fixed(),
+			'ranges' => self::ranges(),
 			'cold' => self::coldMonths(),
 			'profile' => array('cold' => self::shares('cold'), 'hot' => self::shares('hot')),
 			'typed' => self::profile(),

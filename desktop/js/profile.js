@@ -79,10 +79,19 @@ profile.render = function () {
     }
     $('#table_profile tbody').html(rows);
     $('#table_profile tbody tr.profileRow').each(profile.applyKind);
+    $('#table_profileRanges tbody').html((d.ranges || []).map(profile.rangeRow).join(''));
     $('#in_profileThreshold').val(d.threshold);
     $('#cb_profileCatchup').prop('checked', d.replaceCatchup == 1);
     profile.totals();
     profile.draw();
+};
+
+/* a range of days to recalculate with the profile, both ends included */
+profile.rangeRow = function (_r) {
+    _r = _r || {};
+    return '<tr class="profileRangeRow"><td><input type="date" class="form-control input-sm profileRangeFrom" value="' + profile.esc(_r.from) + '"></td>'
+        + '<td><input type="date" class="form-control input-sm profileRangeTo" value="' + profile.esc(_r.to) + '"></td>'
+        + '<td><a class="btn btn-danger btn-xs bt_profileRangeRemove"><i class="fas fa-minus-circle"></i></a></td></tr>';
 };
 
 /* a fixed equipment has a constant power and no share; a variable one has shares and no power */
@@ -115,7 +124,11 @@ profile.read = function () {
             }
         });
     });
-    return {cold: cold, profile: shares, fixed: fixed};
+    var ranges = [];
+    $('#table_profileRanges tbody tr.profileRangeRow').each(function () {
+        ranges.push({from: $(this).find('.profileRangeFrom').val(), to: $(this).find('.profileRangeTo').val()});
+    });
+    return {cold: cold, profile: shares, fixed: fixed, ranges: ranges};
 };
 
 /* sum of every season, and what is left unmeasured */
@@ -206,6 +219,7 @@ $('#bt_profileSave').on('click', function () {
         cold: JSON.stringify(input.cold),
         profile: JSON.stringify(input.profile),
         fixed: JSON.stringify(input.fixed),
+        ranges: JSON.stringify(input.ranges),
         threshold: $('#in_profileThreshold').val(),
         replaceCatchup: $('#cb_profileCatchup').is(':checked') ? 1 : 0
     }, function (result) {
@@ -232,6 +246,14 @@ $('#bt_profileNormalize').on('click', function () {
 });
 
 $('#table_profile').on('input', '.profileShare', profile.totals);
+
+$('#bt_profileRangeAdd').on('click', function () {
+    $('#table_profileRanges tbody').append(profile.rangeRow());
+});
+
+$('#table_profileRanges').on('click', '.bt_profileRangeRemove', function () {
+    $(this).closest('tr').remove();
+});
 
 $('#table_profile').on('change', '.profileKind', function () {
     $(this).closest('tr').each(profile.applyKind);
@@ -285,13 +307,13 @@ $('#bt_profileDays').on('click', function () {
     // the whole available history: a year before today is what the page already weighs
     var from = $('#in_profileFrom').val() || d.from, to = $('#in_profileTo').val() || d.to;
     profile.call({action: 'profileDays', from: from, to: to}, function (r) {
-        var html = '<b>' + r.total + '</b> {{jours à recalculer}} (' + from + ' → ' + to + ') : ' + r.byReason.aberrant + ' {{aberrants}}, ' + r.byReason.frozen + ' {{figés}}, ' + r.byReason.missing + ' {{absents}}.';
+        var html = '<b>' + r.total + '</b> {{jours à recalculer}} (' + from + ' → ' + to + ') : ' + r.byReason.aberrant + ' {{aberrants}}, ' + r.byReason.frozen + ' {{figés}}, ' + r.byReason.missing + ' {{absents}}, ' + r.byReason.manual + ' {{saisis}}.';
         html += '<table class="table table-condensed" style="max-width:700px"><tbody>';
         r.equipments.forEach(function (e) {
-            if (e.aberrant.length + e.frozen + e.missing == 0) {
+            if (e.aberrant.length + e.frozen + e.missing + e.manual == 0) {
                 return;
             }
-            html += '<tr><td>' + profile.esc(e.name) + '</td><td>' + e.aberrant.length + ' {{aberrants}}' + (e.aberrant.length ? ' (' + e.aberrant.slice(0, 8).join(', ') + (e.aberrant.length > 8 ? ' …' : '') + ')' : '') + '</td><td>' + e.frozen + ' {{figés}}</td><td>' + e.missing + ' {{absents}}</td></tr>';
+            html += '<tr><td>' + profile.esc(e.name) + '</td><td>' + e.aberrant.length + ' {{aberrants}}' + (e.aberrant.length ? ' (' + e.aberrant.slice(0, 8).join(', ') + (e.aberrant.length > 8 ? ' …' : '') + ')' : '') + '</td><td>' + e.frozen + ' {{figés}}</td><td>' + e.missing + ' {{absents}}</td><td>' + e.manual + ' {{saisis}}</td></tr>';
         });
         html += '</tbody></table>';
         $('#div_profileDays').html(html);

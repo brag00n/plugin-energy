@@ -86,7 +86,10 @@
         "Profil": "Profil",
         "Profil de consommation par équipement et jours remplacés (lignes [profile], jour par jour).": "Profil de consommation par équipement et jours remplacés (lignes [profile], jour par jour).",
         "Type": "Type",
-        "Puissance fixe (W)": "Puissance fixe (W)"
+        "Puissance fixe (W)": "Puissance fixe (W)",
+        "Plages de jours à recalculer": "Plages de jours à recalculer",
+        "Les jours de ces plages (bornes incluses) sont toujours remplacés par le profil, pour tous les équipements, quoi qu'ils aient mesuré. Les jours où le compteur total n'a rien enregistré gardent leurs mesures.": "Les jours de ces plages (bornes incluses) sont toujours remplacés par le profil, pour tous les équipements, quoi qu'ils aient mesuré. Les jours où le compteur total n'a rien enregistré gardent leurs mesures.",
+        "Au (inclus)": "Au (inclus)"
     },
     "plugins\/energy\/desktop\/php\/panel.php": {
         "401 - Accès non autorisé": "401 - Nicht autorisierter Zugriff",
@@ -375,7 +378,8 @@
         "Fixe": "Fixe",
         "fixe": "fixe",
         "équipement(s) fixe(s) détecté(s)": "équipement(s) fixe(s) détecté(s)",
-        "Les types et les champs de la saison choisie sont remplis, modifiables à la main : enregistrez pour les appliquer.": "Les types et les champs de la saison choisie sont remplis, modifiables à la main : enregistrez pour les appliquer."
+        "Les types et les champs de la saison choisie sont remplis, modifiables à la main : enregistrez pour les appliquer.": "Les types et les champs de la saison choisie sont remplis, modifiables à la main : enregistrez pour les appliquer.",
+        "saisis": "saisis"
     },
     "plugins\/energy\/core\/class\/energyProfile.class.php": {
         "Mois invalide : ": "Mois invalide : ",
@@ -387,6 +391,7 @@
         "Plage de dates invalide : ": "Plage de dates invalide : ",
         "Plage de dates trop longue.": "Plage de dates trop longue.",
         "Aucun compteur total pour calculer le profil.": "Aucun compteur total pour calculer le profil.",
-        "Puissance invalide (0 à 100000 W) : ": "Puissance invalide (0 à 100000 W) : "
+        "Puissance invalide (0 à 100000 W) : ": "Puissance invalide (0 à 100000 W) : ",
+        "Plage de jours invalide (ligne ": "Plage de jours invalide (ligne "
     }
 }

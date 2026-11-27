@@ -86,7 +86,10 @@
         "Profil": "Profile",
         "Profil de consommation par équipement et jours remplacés (lignes [profile], jour par jour).": "Consumption profile by equipment and replaced days ([profile] lines, day by day).",
         "Type": "Type",
-        "Puissance fixe (W)": "Fixed power (W)"
+        "Puissance fixe (W)": "Fixed power (W)",
+        "Plages de jours à recalculer": "Ranges of days to recalculate",
+        "Les jours de ces plages (bornes incluses) sont toujours remplacés par le profil, pour tous les équipements, quoi qu'ils aient mesuré. Les jours où le compteur total n'a rien enregistré gardent leurs mesures.": "The days of these ranges (both ends included) are always replaced by the profile, for every equipment, whatever they measured. The days the total counter recorded nothing keep their measures.",
+        "Au (inclus)": "To (included)"
     },
     "plugins\/energy\/desktop\/php\/panel.php": {
         "401 - Accès non autorisé": "401 - Unauthorized access",
@@ -375,7 +378,8 @@
         "Fixe": "Fixed",
         "fixe": "fixed",
         "équipement(s) fixe(s) détecté(s)": "fixed equipment(s) detected",
-        "Les types et les champs de la saison choisie sont remplis, modifiables à la main : enregistrez pour les appliquer.": "The kinds and the fields of the chosen season are filled, editable by hand: save to apply them."
+        "Les types et les champs de la saison choisie sont remplis, modifiables à la main : enregistrez pour les appliquer.": "The kinds and the fields of the chosen season are filled, editable by hand: save to apply them.",
+        "saisis": "typed"
     },
     "plugins\/energy\/core\/class\/energyProfile.class.php": {
         "Mois invalide : ": "Invalid month: ",
@@ -387,6 +391,7 @@
         "Plage de dates invalide : ": "Invalid date range: ",
         "Plage de dates trop longue.": "Date range too long.",
         "Aucun compteur total pour calculer le profil.": "No total counter to compute the profile.",
-        "Puissance invalide (0 à 100000 W) : ": "Invalid power (0 to 100000 W): "
+        "Puissance invalide (0 à 100000 W) : ": "Invalid power (0 to 100000 W): ",
+        "Plage de jours invalide (ligne ": "Invalid range of days (line "
     }
 }

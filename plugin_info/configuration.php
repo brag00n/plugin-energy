@@ -258,6 +258,16 @@ if (!isConnect()) {
     </div>
 </div>
 <div class="form-group">
+    <label class="col-sm-2 control-label">{{Plages de jours à recalculer}} <sup><i class="fas fa-question-circle tooltips" title="{{Les jours de ces plages (bornes incluses) sont toujours remplacés par le profil, pour tous les équipements, quoi qu'ils aient mesuré. Les jours où le compteur total n'a rien enregistré gardent leurs mesures.}}"></i></sup></label>
+    <div class="col-sm-8">
+        <table class="table table-condensed" id="table_profileRanges" style="max-width:520px">
+            <thead><tr><th>{{Du (inclus)}}</th><th>{{Au (inclus)}}</th><th></th></tr></thead>
+            <tbody></tbody>
+        </table>
+        <a class="btn btn-default btn-sm" id="bt_profileRangeAdd"><i class="fas fa-plus-circle"></i> {{Ajouter une plage}}</a>
+    </div>
+</div>
+<div class="form-group">
     <label class="col-sm-2 control-label"></label>
     <div class="col-sm-8">
         <a class="btn btn-success btn-sm" id="bt_profileSave"><i class="fas fa-save"></i> {{Enregistrer le profil}}</a>
